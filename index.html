@@ -3,8 +3,11 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-  <title>Stories Player</title>
+  <title>YSSLoyalty Rewind</title>
   <meta name="theme-color" content="#000000" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
       --bar-bg: rgba(255,255,255,0.25);
@@ -19,7 +22,7 @@
       margin: 0;
       background: #000;
       color: var(--ui-fg);
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      font-family: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
       overflow: hidden;
     }
 
@@ -83,7 +86,7 @@
     .edge-left { left:0; background: linear-gradient(90deg, rgba(0,0,0,.35), rgba(0,0,0,0)); }
     .edge-right { right:0; background: linear-gradient(270deg, rgba(0,0,0,.35), rgba(0,0,0,0)); }
 
-    /* Tap-to-start overlay (autoplay gating on iOS) */
+    /* Minimal gate (autoplay requires a user gesture) */
     .gate {
       position: absolute;
       inset: 0;
@@ -117,9 +120,6 @@
     }
     .pill { pointer-events: auto; opacity: .9; }
 
-    .sound { pointer-events: auto; }
-    .sound .btn { padding: 10px 12px; border-radius: 12px; }
-
     /* Share overlay at the end */
     .share {
       position: absolute;
@@ -143,14 +143,6 @@
     .share p { margin: 0 0 12px; color: var(--ui-muted); line-height: 1.35; }
     .share .row { display: flex; gap: 10px; }
 
-    /* Small helper text at bottom */
-    .hint {
-      position: absolute;
-      left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom) + 10px);
-      text-align: center; font-size: 12px; color: var(--ui-muted);
-      z-index: 20; pointer-events: none;
-    }
-
     /* Accessibility: prevent accidental selection */
     .tapzone, .btn { -webkit-user-select: none; user-select: none; }
   </style>
@@ -160,14 +152,14 @@
     <!-- Progress bars -->
     <div class="progress" id="progress"></div>
 
-    <!-- Optional top UI (logo/title + replay + sound toggle) -->
+    <!-- Top UI: logo/title + Share + Replay -->
     <div class="top-ui">
       <div style="display:flex; align-items:center; gap:8px; opacity:.9">
         <div style="width:28px;height:28px;border-radius:999px;background:#fff"></div>
-        <div style="font-weight:700">YSS Stories</div>
+        <div style="font-weight:700">YSSLoyalty Rewind</div>
       </div>
-      <div style="display:flex; gap:8px; align-items:center;" class="sound">
-        <button id="muteToggle" class="btn inline pill" aria-pressed="false">Sound On</button>
+      <div style="display:flex; gap:8px; align-items:center;" class="actions">
+        <button id="shareTopBtn" class="btn inline pill">Share…</button>
         <button id="replayBtn" class="btn inline pill" style="display:none">Replay</button>
       </div>
     </div>
@@ -182,17 +174,10 @@
     <div class="edge-hint edge-left"></div>
     <div class="edge-hint edge-right"></div>
 
-    <div class="hint">Tap left/right to navigate • Press & hold to pause • Swipe to navigate • Tap a bar to jump</div>
-
-    <!-- Autoplay gate -->
+    <!-- Minimal Autoplay gate -->
     <div class="gate" id="gate">
       <div>
-        <h1 style="margin:0 0 10px">Tap to Start</h1>
-        <p style="margin:0 0 16px; color:var(--ui-muted)">Sound on by default • Best on mobile</p>
-        <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap">
-          <button class="btn" id="startBtn">Play (Sound On)</button>
-          <button class="btn secondary" id="unmuteBtn">Start Muted</button>
-        </div>
+        <button class="btn" id="startBtn">Play</button>
       </div>
     </div>
 
@@ -200,7 +185,7 @@
     <div class="share" id="share">
       <div class="panel">
         <h2>Done! Share it</h2>
-        <p>On many phones, the Share sheet will include Instagram — choose <strong>Story</strong> to post. If you don't see Instagram, download the video and upload it manually.</p>
+        <p>Choose Instagram → Story from your Share sheet, or download and upload manually.</p>
         <div class="row">
           <button class="btn" id="shareBtn">Share…</button>
           <button class="btn secondary" id="downloadBtn">Download video</button>
@@ -212,9 +197,14 @@
 
   <script>
     (function() {
-      const VIDEO_URL = "https://storage.googleapis.com/yss_media/YSSRewindv4.mp4"; // Provided video
-      const SLIDE_COUNT = 5; // Number of story slides
-      const slides = Array.from({ length: SLIDE_COUNT }, () => VIDEO_URL);
+      // Five explicit clips (order matters)
+      const slides = [
+        "https://storage.googleapis.com/yss_media/NURSE%20JEI/%231.mp4",
+        "https://storage.googleapis.com/yss_media/NURSE%20JEI/%232.mp4",
+        "https://storage.googleapis.com/yss_media/NURSE%20JEI/%233.mp4",
+        "https://storage.googleapis.com/yss_media/NURSE%20JEI/%234.mp4",
+        "https://storage.googleapis.com/yss_media/NURSE%20JEI/%235.mp4",
+      ];
 
       const app = document.getElementById('app');
       const progressRoot = document.getElementById('progress');
@@ -223,13 +213,11 @@
       const tapRight = document.getElementById('tapRight');
       const gate = document.getElementById('gate');
       const startBtn = document.getElementById('startBtn');
-      const unmuteBtn = document.getElementById('unmuteBtn');
       const shareOverlay = document.getElementById('share');
       const shareBtn = document.getElementById('shareBtn');
       const downloadBtn = document.getElementById('downloadBtn');
       const replayBtn = document.getElementById('replayBtn');
       const replayBtn2 = document.getElementById('replayBtn2');
-      const muteToggle = document.getElementById('muteToggle');
 
       let current = 0;
       let raf = null;
@@ -239,7 +227,7 @@
       // Build progress bars
       const fills = [];
       const tracks = [];
-      for (let i = 0; i < SLIDE_COUNT; i++) {
+      for (let i = 0; i < slides.length; i++) {
         const track = document.createElement('div');
         track.className = 'track';
         track.setAttribute('role', 'button');
@@ -250,10 +238,7 @@
         progressRoot.appendChild(track);
         fills.push(fill);
         tracks.push(track);
-
-        track.addEventListener('click', () => {
-          loadSlide(i);
-        });
+        track.addEventListener('click', () => loadSlide(i));
       }
 
       function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
@@ -277,7 +262,7 @@
         const maybePlay = () => {
           if (!autoplay) return; // wait for explicit user action
           const p = player.play();
-          if (p && typeof p.catch === 'function') p.catch(() => {/* handled by gate */});
+          if (p && typeof p.catch === 'function') p.catch(() => {/* autoplay blocked */});
         };
 
         if (player.readyState >= 2) {
@@ -290,21 +275,9 @@
         tick();
       }
 
-      function next() {
-        if (current < slides.length - 1) {
-          loadSlide(current + 1);
-        } else {
-          // Finished all slides
-          showShare();
-        }
-      }
-
+      function next() { current < slides.length - 1 ? loadSlide(current + 1) : showShare(); }
       function prev() {
-        if (player.currentTime > 0.25) {
-          player.currentTime = 0; // restart current
-        } else if (current > 0) {
-          loadSlide(current - 1);
-        }
+        if (player.currentTime > 0.25) player.currentTime = 0; else if (current > 0) loadSlide(current - 1);
       }
 
       function tick() {
@@ -337,28 +310,20 @@
         isPressing = true;
         try { player.pause(); } catch (e) {}
       };
-      const pressEnd = () => {
-        if (!isPressing) return;
-        isPressing = false;
-        try { player.play(); } catch (e) {}
-      };
+      const pressEnd = () => { if (!isPressing) return; isPressing = false; try { player.play(); } catch (e) {} };
       app.addEventListener('pointerdown', pressStart);
       app.addEventListener('pointerup', pressEnd);
       app.addEventListener('pointercancel', pressEnd);
       app.addEventListener('pointerleave', pressEnd);
 
       // Swipe navigation (touch)
-      app.addEventListener('touchstart', (e) => {
-        touchStartX = e.changedTouches[0].clientX;
-      }, { passive: true });
+      app.addEventListener('touchstart', (e) => { touchStartX = e.changedTouches[0].clientX; }, { passive: true });
       app.addEventListener('touchend', (e) => {
         if (touchStartX == null) return;
         const dx = e.changedTouches[0].clientX - touchStartX;
         touchStartX = null;
         const THRESH = 40; // px
-        if (Math.abs(dx) > THRESH) {
-          if (dx < 0) next(); else prev();
-        }
+        if (Math.abs(dx) > THRESH) { if (dx < 0) next(); else prev(); }
       });
 
       // Keyboard support (desktop testing)
@@ -369,43 +334,17 @@
       });
 
       // Visibility handling to pause when tab goes background
-      document.addEventListener('visibilitychange', () => {
-        if (document.hidden) {
-          try { player.pause(); } catch (e) {}
-        }
-      });
+      document.addEventListener('visibilitychange', () => { if (document.hidden) { try { player.pause(); } catch (e) {} } });
 
-      // Gate controls
-      function startPlayback(unmute = false) {
-        player.muted = !unmute;
-        updateMuteUI();
+      // Gate controls (start with sound ON after a tap)
+      function startPlayback() {
+        player.muted = false;
         gate.style.display = 'none';
         loadSlide(current, { autoplay: true });
       }
-      // Tap anywhere on the gate to start (not just the buttons)
-      gate.addEventListener('click', (e) => {
-        // If the user specifically hit the Start Muted button, that listener will run.
-        // Otherwise start UNmuted by default.
-        if (e.target.id !== 'unmuteBtn') startPlayback(true);
-      });
-      startBtn.addEventListener('click', (e) => { e.stopPropagation(); startPlayback(true); });
-      unmuteBtn.addEventListener('click', (e) => { e.stopPropagation(); startPlayback(false); });
-
-      // Sound toggle (top-right)
-      function updateMuteUI() {
-        const off = player.muted;
-        muteToggle.setAttribute('aria-pressed', off ? 'true' : 'false');
-        muteToggle.textContent = off ? 'Sound Off' : 'Sound On';
-      }
-      muteToggle.addEventListener('click', () => {
-        player.muted = !player.muted;
-        updateMuteUI();
-        // If user unmutes while paused, start playback to honor intent
-        if (player.muted === false && player.paused) {
-          const p = player.play();
-          if (p && typeof p.catch === 'function') p.catch(()=>{});
-        }
-      });
+      // Tap anywhere on the gate or the Play button to start
+      gate.addEventListener('click', startPlayback);
+      startBtn.addEventListener('click', (e) => { e.stopPropagation(); startPlayback(); });
 
       // Replay
       function replay() {
@@ -419,35 +358,28 @@
 
       // Share logic (best-effort from the web)
       async function shareVideo() {
-        const title = 'YSS Rewind';
-        const text = 'Sharing YSS Rewind — tap Story in Instagram to post.';
+        const title = 'YSSLoyalty Rewind';
+        const text = 'Share to Instagram Story';
+        const currentUrl = slides[current];
 
-        // Try Web Share API level 2 (files). Many Android devices support this.
+        // Try Web Share API level 2 (files)
         try {
-          const resp = await fetch(VIDEO_URL, { mode: 'cors' });
+          const resp = await fetch(currentUrl, { mode: 'cors' });
           const blob = await resp.blob();
-          const file = new File([blob], 'YSSRewindv4.mp4', { type: 'video/mp4' });
-
+          const file = new File([blob], currentUrl.split('/').pop() || 'clip.mp4', { type: 'video/mp4' });
           if (navigator.canShare && navigator.canShare({ files: [file] })) {
             await navigator.share({ files: [file], title, text });
             return;
           }
-        } catch (err) {
-          // Ignore and try URL share fallback
-        }
+        } catch (err) { /* ignore and try URL */ }
 
-        // Fallback: share the URL (may still offer Instagram in the sheet on some devices)
+        // Fallback: share the URL
         if (navigator.share) {
-          try {
-            await navigator.share({ title, text, url: VIDEO_URL });
-            return;
-          } catch (err) {
-            // user cancelled; ignore
-          }
+          try { await navigator.share({ title, text, url: currentUrl }); return; } catch (err) {}
         }
 
-        // Final fallback: trigger download so user can upload to Instagram Story manually
-        triggerDownload(VIDEO_URL, 'YSSRewindv4.mp4');
+        // Final fallback: download
+        triggerDownload(currentUrl, currentUrl.split('/').pop() || 'clip.mp4');
       }
 
       function triggerDownload(url, filename) {
@@ -459,8 +391,9 @@
         a.remove();
       }
 
+      document.getElementById('shareTopBtn').addEventListener('click', shareVideo);
       shareBtn.addEventListener('click', shareVideo);
-      downloadBtn.addEventListener('click', () => triggerDownload(VIDEO_URL, 'YSSRewindv4.mp4'));
+      downloadBtn.addEventListener('click', () => triggerDownload(slides[current], slides[current].split('/').pop() || 'clip.mp4'));
 
       // Basic error diagnostics
       player.addEventListener('error', () => {
@@ -477,7 +410,6 @@
 
       // Initial state: load first slide but keep gate visible; don't autoplay until tap
       loadSlide(0, { autoplay: false });
-      updateMuteUI();
     })();
   </script>
 </body>
