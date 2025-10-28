@@ -145,6 +145,21 @@
 
     /* Accessibility: prevent accidental selection */
     .tapzone, .btn { -webkit-user-select: none; user-select: none; }
+      /* Spotify embed panel */
+    .spotify {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      z-index: 45; /* above share overlay */
+      display: none;
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.98);
+      transition: opacity .35s ease, transform .35s ease;
+      width: min(92vw, 560px);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .spotify.visible { display: block; opacity: 1; transform: translate(-50%, -50%) scale(1); }
   </style>
 </head>
 <body>
@@ -173,6 +188,11 @@
 
     <div class="edge-hint edge-left"></div>
     <div class="edge-hint edge-right"></div>
+
+    <!-- Spotify embed (appears near the end of the last slide) -->
+    <div class="spotify" id="spotifyPanel">
+      <iframe data-testid="embed-iframe" style="border-radius:12px" data-src="https://open.spotify.com/embed/playlist/5h8G9staxe6l3dSb8CKU08?utm_source=generator&theme=0" width="100%" height="152" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
+    </div>
 
     <!-- Minimal Autoplay gate -->
     <div class="gate" id="gate">
@@ -218,6 +238,10 @@
       const downloadBtn = document.getElementById('downloadBtn');
       const replayBtn = document.getElementById('replayBtn');
       const replayBtn2 = document.getElementById('replayBtn2');
+      const spotifyPanel = document.getElementById('spotifyPanel');
+      const spotifyIframe = spotifyPanel.querySelector('iframe');
+      const SPOTIFY_LEAD_S = 2.0; // seconds before the end to reveal
+      let spotifyShown = false;
 
       let current = 0;
       let raf = null;
@@ -247,6 +271,11 @@
         current = clamp(i, 0, slides.length - 1);
         shareOverlay.classList.remove('visible');
         replayBtn.style.display = 'none';
+
+        // Hide Spotify unless we're about to show on last slide
+        spotifyPanel.classList.remove('visible');
+        spotifyPanel.style.display = 'none';
+        spotifyShown = false;
 
         // Reset progress bars up to current
         for (let j = 0; j < slides.length; j++) {
@@ -282,9 +311,23 @@
 
       function tick() {
         // Update progress bars
-        if (!player.paused && player.duration > 0 && isFinite(player.duration)) {
-          const pct = (player.currentTime / player.duration) * 100;
-          fills[current].style.width = clamp(pct, 0, 100) + '%';
+        if (player.duration > 0 && isFinite(player.duration)) {
+          const pct = (!player.paused ? (player.currentTime / player.duration) * 100 : (fills[current].style.width.replace('%','')||0));
+          if (!player.paused) fills[current].style.width = clamp(pct, 0, 100) + '%';
+
+          // Reveal Spotify during the last second of the final slide
+          if (!spotifyShown && current === slides.length - 1) {
+            const remaining = player.duration - player.currentTime;
+            if (remaining <= SPOTIFY_LEAD_S) {
+              // lazy-load src to avoid unnecessary early requests
+              const src = spotifyIframe.getAttribute('data-src');
+              if (src && !spotifyIframe.src) spotifyIframe.src = src;
+              spotifyPanel.style.display = 'block';
+              // wait next frame so transition can run
+              requestAnimationFrame(() => spotifyPanel.classList.add('visible'));
+              spotifyShown = true;
+            }
+          }
         }
         raf = requestAnimationFrame(tick);
       }
@@ -351,6 +394,10 @@
         current = 0;
         shareOverlay.classList.remove('visible');
         replayBtn.style.display = 'none';
+        // Reset Spotify
+        spotifyPanel.classList.remove('visible');
+        spotifyPanel.style.display = 'none';
+        spotifyShown = false;
         loadSlide(0);
       }
       replayBtn.addEventListener('click', replay);
