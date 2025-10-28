@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <title>Stories Player</title>
+  <meta name="theme-color" content="#000000" />
+  <style>
+    :root {
+      --bar-bg: rgba(255,255,255,0.25);
+      --bar-fg: white;
+      --ui-fg: white;
+      --ui-muted: rgba(255,255,255,0.75);
+      --shadow: 0 8px 30px rgba(0,0,0,.35);
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: #000;
+      color: var(--ui-fg);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      overflow: hidden;
+    }
+
+    .root {
+      position: relative;
+      width: 100vw;
+      height: 100dvh;
+      overflow: hidden;
+      background: #000;
+    }
+
+    /* Top progress bars (like Instagram Stories) */
+    .progress {
+      position: absolute;
+      top: calc(env(safe-area-inset-top) + 8px);
+      left: 8px;
+      right: 8px;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 4px;
+      z-index: 20;
+      pointer-events: auto; /* allow taps on bars */
+    }
+    .progress .track {
+      height: 3px;
+      background: var(--bar-bg);
+      border-radius: 999px;
+      overflow: hidden;
+      cursor: pointer;
+    }
+    .progress .fill {
+      width: 0%;
+      height: 100%;
+      background: var(--bar-fg);
+      transform-origin: left center;
+      transition: width 100ms linear;
+    }
+
+    /* Video takes entire viewport */
+    video#player {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: #000;
+    }
+
+    /* Tap zones */
+    .tapzone {
+      position: absolute;
+      top: 0; bottom: 0;
+      width: 50%;
+      z-index: 15;
+    }
+    .left { left: 0; }
+    .right { right: 0; }
+
+    /* Optional subtle gradient hints on edges */
+    .edge-hint { position:absolute; top:0; bottom:0; width:16%; z-index: 10; pointer-events:none; }
+    .edge-left { left:0; background: linear-gradient(90deg, rgba(0,0,0,.35), rgba(0,0,0,0)); }
+    .edge-right { right:0; background: linear-gradient(270deg, rgba(0,0,0,.35), rgba(0,0,0,0)); }
+
+    /* Tap-to-start overlay (autoplay gating on iOS) */
+    .gate {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: rgba(0,0,0,.6);
+      z-index: 30;
+      padding: 24px;
+      text-align: center;
+    }
+    .btn {
+      appearance: none;
+      border: none;
+      border-radius: 18px;
+      padding: 14px 18px;
+      font-weight: 600;
+      color: #111;
+      background: #fff;
+      box-shadow: var(--shadow);
+      cursor: pointer;
+    }
+    .btn.secondary { background: rgba(255,255,255,.15); color: #fff; backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,.25); }
+    .btn.inline { padding: 10px 12px; border-radius: 12px; font-weight: 600; }
+
+    .top-ui {
+      position: absolute;
+      left: 12px; right: 12px;
+      top: calc(env(safe-area-inset-top) + 18px);
+      display: flex; align-items: center; justify-content: space-between;
+      z-index: 25; pointer-events: none;
+    }
+    .pill { pointer-events: auto; opacity: .9; }
+
+    .sound { pointer-events: auto; }
+    .sound .btn { padding: 10px 12px; border-radius: 12px; }
+
+    /* Share overlay at the end */
+    .share {
+      position: absolute;
+      inset: 0;
+      display: none;
+      z-index: 40;
+      background: linear-gradient(0deg, rgba(0,0,0,.8) 0%, rgba(0,0,0,.2) 45%, rgba(0,0,0,0) 70%);
+      padding: 24px 16px calc(env(safe-area-inset-bottom) + 24px);
+      align-content: end;
+      gap: 12px;
+    }
+    .share.visible { display: grid; }
+    .share .panel {
+      background: rgba(255,255,255,.1);
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 18px;
+      padding: 16px;
+      backdrop-filter: blur(6px);
+    }
+    .share h2 { margin: 0 0 6px; font-size: 20px; }
+    .share p { margin: 0 0 12px; color: var(--ui-muted); line-height: 1.35; }
+    .share .row { display: flex; gap: 10px; }
+
+    /* Small helper text at bottom */
+    .hint {
+      position: absolute;
+      left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom) + 10px);
+      text-align: center; font-size: 12px; color: var(--ui-muted);
+      z-index: 20; pointer-events: none;
+    }
+
+    /* Accessibility: prevent accidental selection */
+    .tapzone, .btn { -webkit-user-select: none; user-select: none; }
+  </style>
+</head>
+<body>
+  <div class="root" id="app">
+    <!-- Progress bars -->
+    <div class="progress" id="progress"></div>
+
+    <!-- Optional top UI (logo/title + replay + sound toggle) -->
+    <div class="top-ui">
+      <div style="display:flex; align-items:center; gap:8px; opacity:.9">
+        <div style="width:28px;height:28px;border-radius:999px;background:#fff"></div>
+        <div style="font-weight:700">YSS Stories</div>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center;" class="sound">
+        <button id="muteToggle" class="btn inline pill" aria-pressed="false">Sound On</button>
+        <button id="replayBtn" class="btn inline pill" style="display:none">Replay</button>
+      </div>
+    </div>
+
+    <!-- Video player -->
+    <video id="player" playsinline preload="metadata"></video>
+
+    <!-- Tap zones (left/right) -->
+    <div class="tapzone left" id="tapLeft" aria-label="Previous story" role="button"></div>
+    <div class="tapzone right" id="tapRight" aria-label="Next story" role="button"></div>
+
+    <div class="edge-hint edge-left"></div>
+    <div class="edge-hint edge-right"></div>
+
+    <div class="hint">Tap left/right to navigate • Press & hold to pause • Swipe to navigate • Tap a bar to jump</div>
+
+    <!-- Autoplay gate -->
+    <div class="gate" id="gate">
+      <div>
+        <h1 style="margin:0 0 10px">Tap to Start</h1>
+        <p style="margin:0 0 16px; color:var(--ui-muted)">Sound on by default • Best on mobile</p>
+        <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap">
+          <button class="btn" id="startBtn">Play (Sound On)</button>
+          <button class="btn secondary" id="unmuteBtn">Start Muted</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Share overlay shown after last video finishes -->
+    <div class="share" id="share">
+      <div class="panel">
+        <h2>Done! Share it</h2>
+        <p>On many phones, the Share sheet will include Instagram — choose <strong>Story</strong> to post. If you don't see Instagram, download the video and upload it manually.</p>
+        <div class="row">
+          <button class="btn" id="shareBtn">Share…</button>
+          <button class="btn secondary" id="downloadBtn">Download video</button>
+        </div>
+      </div>
+      <button class="btn" id="replayBtn2" style="justify-self:center; margin-top:6px;">Replay</button>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      const VIDEO_URL = "https://storage.googleapis.com/yss_media/YSSRewindv4.mp4"; // Provided video
+      const SLIDE_COUNT = 5; // Number of story slides
+      const slides = Array.from({ length: SLIDE_COUNT }, () => VIDEO_URL);
+
+      const app = document.getElementById('app');
+      const progressRoot = document.getElementById('progress');
+      const player = document.getElementById('player');
+      const tapLeft = document.getElementById('tapLeft');
+      const tapRight = document.getElementById('tapRight');
+      const gate = document.getElementById('gate');
+      const startBtn = document.getElementById('startBtn');
+      const unmuteBtn = document.getElementById('unmuteBtn');
+      const shareOverlay = document.getElementById('share');
+      const shareBtn = document.getElementById('shareBtn');
+      const downloadBtn = document.getElementById('downloadBtn');
+      const replayBtn = document.getElementById('replayBtn');
+      const replayBtn2 = document.getElementById('replayBtn2');
+      const muteToggle = document.getElementById('muteToggle');
+
+      let current = 0;
+      let raf = null;
+      let isPressing = false;
+      let touchStartX = null;
+
+      // Build progress bars
+      const fills = [];
+      const tracks = [];
+      for (let i = 0; i < SLIDE_COUNT; i++) {
+        const track = document.createElement('div');
+        track.className = 'track';
+        track.setAttribute('role', 'button');
+        track.setAttribute('aria-label', `Jump to story ${i+1}`);
+        const fill = document.createElement('div');
+        fill.className = 'fill';
+        track.appendChild(fill);
+        progressRoot.appendChild(track);
+        fills.push(fill);
+        tracks.push(track);
+
+        track.addEventListener('click', () => {
+          loadSlide(i);
+        });
+      }
+
+      function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+
+      function loadSlide(i, { autoplay = true } = {}) {
+        current = clamp(i, 0, slides.length - 1);
+        shareOverlay.classList.remove('visible');
+        replayBtn.style.display = 'none';
+
+        // Reset progress bars up to current
+        for (let j = 0; j < slides.length; j++) {
+          if (j < current) fills[j].style.width = '100%';
+          else fills[j].style.width = '0%';
+        }
+
+        const url = slides[current];
+        player.src = url; // plain URL for maximum compatibility
+        player.currentTime = 0;
+        player.load();
+
+        const maybePlay = () => {
+          if (!autoplay) return; // wait for explicit user action
+          const p = player.play();
+          if (p && typeof p.catch === 'function') p.catch(() => {/* handled by gate */});
+        };
+
+        if (player.readyState >= 2) {
+          maybePlay();
+        } else {
+          player.addEventListener('loadedmetadata', maybePlay, { once: true });
+        }
+
+        cancelAnimationFrame(raf);
+        tick();
+      }
+
+      function next() {
+        if (current < slides.length - 1) {
+          loadSlide(current + 1);
+        } else {
+          // Finished all slides
+          showShare();
+        }
+      }
+
+      function prev() {
+        if (player.currentTime > 0.25) {
+          player.currentTime = 0; // restart current
+        } else if (current > 0) {
+          loadSlide(current - 1);
+        }
+      }
+
+      function tick() {
+        // Update progress bars
+        if (!player.paused && player.duration > 0 && isFinite(player.duration)) {
+          const pct = (player.currentTime / player.duration) * 100;
+          fills[current].style.width = clamp(pct, 0, 100) + '%';
+        }
+        raf = requestAnimationFrame(tick);
+      }
+
+      function showShare() {
+        // Complete all bars
+        fills.forEach(f => f.style.width = '100%');
+        replayBtn.style.display = 'inline-flex';
+        shareOverlay.classList.add('visible');
+        try { player.pause(); } catch (e) {}
+      }
+
+      // Event wiring (tap & click)
+      tapRight.addEventListener('click', next);
+      tapLeft.addEventListener('click', prev);
+      player.addEventListener('ended', next);
+
+      // Press & hold to pause / resume
+      const pressStart = (e) => {
+        // Ignore press-to-pause if gate or UI buttons are tapped
+        if (getComputedStyle(gate).display !== 'none') return;
+        if (e && (e.target.closest('.gate') || e.target.closest('.progress') || e.target.closest('button'))) return;
+        isPressing = true;
+        try { player.pause(); } catch (e) {}
+      };
+      const pressEnd = () => {
+        if (!isPressing) return;
+        isPressing = false;
+        try { player.play(); } catch (e) {}
+      };
+      app.addEventListener('pointerdown', pressStart);
+      app.addEventListener('pointerup', pressEnd);
+      app.addEventListener('pointercancel', pressEnd);
+      app.addEventListener('pointerleave', pressEnd);
+
+      // Swipe navigation (touch)
+      app.addEventListener('touchstart', (e) => {
+        touchStartX = e.changedTouches[0].clientX;
+      }, { passive: true });
+      app.addEventListener('touchend', (e) => {
+        if (touchStartX == null) return;
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        touchStartX = null;
+        const THRESH = 40; // px
+        if (Math.abs(dx) > THRESH) {
+          if (dx < 0) next(); else prev();
+        }
+      });
+
+      // Keyboard support (desktop testing)
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight') next();
+        if (e.key === 'ArrowLeft') prev();
+        if (e.key === ' ') { e.preventDefault(); player.paused ? player.play() : player.pause(); }
+      });
+
+      // Visibility handling to pause when tab goes background
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+          try { player.pause(); } catch (e) {}
+        }
+      });
+
+      // Gate controls
+      function startPlayback(unmute = false) {
+        player.muted = !unmute;
+        updateMuteUI();
+        gate.style.display = 'none';
+        loadSlide(current, { autoplay: true });
+      }
+      // Tap anywhere on the gate to start (not just the buttons)
+      gate.addEventListener('click', (e) => {
+        // If the user specifically hit the Start Muted button, that listener will run.
+        // Otherwise start UNmuted by default.
+        if (e.target.id !== 'unmuteBtn') startPlayback(true);
+      });
+      startBtn.addEventListener('click', (e) => { e.stopPropagation(); startPlayback(true); });
+      unmuteBtn.addEventListener('click', (e) => { e.stopPropagation(); startPlayback(false); });
+
+      // Sound toggle (top-right)
+      function updateMuteUI() {
+        const off = player.muted;
+        muteToggle.setAttribute('aria-pressed', off ? 'true' : 'false');
+        muteToggle.textContent = off ? 'Sound Off' : 'Sound On';
+      }
+      muteToggle.addEventListener('click', () => {
+        player.muted = !player.muted;
+        updateMuteUI();
+        // If user unmutes while paused, start playback to honor intent
+        if (player.muted === false && player.paused) {
+          const p = player.play();
+          if (p && typeof p.catch === 'function') p.catch(()=>{});
+        }
+      });
+
+      // Replay
+      function replay() {
+        current = 0;
+        shareOverlay.classList.remove('visible');
+        replayBtn.style.display = 'none';
+        loadSlide(0);
+      }
+      replayBtn.addEventListener('click', replay);
+      replayBtn2.addEventListener('click', replay);
+
+      // Share logic (best-effort from the web)
+      async function shareVideo() {
+        const title = 'YSS Rewind';
+        const text = 'Sharing YSS Rewind — tap Story in Instagram to post.';
+
+        // Try Web Share API level 2 (files). Many Android devices support this.
+        try {
+          const resp = await fetch(VIDEO_URL, { mode: 'cors' });
+          const blob = await resp.blob();
+          const file = new File([blob], 'YSSRewindv4.mp4', { type: 'video/mp4' });
+
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], title, text });
+            return;
+          }
+        } catch (err) {
+          // Ignore and try URL share fallback
+        }
+
+        // Fallback: share the URL (may still offer Instagram in the sheet on some devices)
+        if (navigator.share) {
+          try {
+            await navigator.share({ title, text, url: VIDEO_URL });
+            return;
+          } catch (err) {
+            // user cancelled; ignore
+          }
+        }
+
+        // Final fallback: trigger download so user can upload to Instagram Story manually
+        triggerDownload(VIDEO_URL, 'YSSRewindv4.mp4');
+      }
+
+      function triggerDownload(url, filename) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+
+      shareBtn.addEventListener('click', shareVideo);
+      downloadBtn.addEventListener('click', () => triggerDownload(VIDEO_URL, 'YSSRewindv4.mp4'));
+
+      // Basic error diagnostics
+      player.addEventListener('error', () => {
+        const err = player.error;
+        let msg = 'Playback error.';
+        if (err) {
+          const map = {1:'aborted',2:'network',3:'decode',4:'src not supported'};
+          msg += ` Code ${err.code} (${map[err.code]||'unknown'}).`;
+        }
+        console.warn(msg);
+        // As a last resort, reveal native controls so user can try manually
+        player.setAttribute('controls', 'controls');
+      });
+
+      // Initial state: load first slide but keep gate visible; don't autoplay until tap
+      loadSlide(0, { autoplay: false });
+      updateMuteUI();
+    })();
+  </script>
+</body>
+</html>
