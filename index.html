@@ -330,16 +330,41 @@
     // ---- Helpers for Web Share (files) ----
     async function getCurrentFile() {
       const currentUrl = slides[current];
-      const resp = await fetch(currentUrl, { mode: 'cors' });
-      const blob = await resp.blob();
-      // Normalize to a common extension/mime that Instagram accepts
-      /**
-       * NOTE: Instagram typically accepts H.264/AAC in .mp4 containers.
-       * We keep metadata minimal; some apps reject extra fields.
-       */
-      const filename = (currentUrl.split('/').pop() || 'clip.mp4').replace(/\?.*$/, '');
-      const type = blob.type && blob.type !== 'application/octet-stream' ? blob.type : 'video/mp4';
-      return new File([blob], filename.endsWith('.mp4') ? filename : (filename + '.mp4'), { type });
+      // Robust GET with timeout + filename extraction
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 15000);
+      let filename = (currentUrl.split('/').pop() || 'clip.mp4').replace(/\?.*$/, '');
+
+      try {
+        // Try HEAD first for filename & type hints
+        try {
+          const head = await fetch(currentUrl, { method: 'HEAD', mode: 'cors', signal: ctrl.signal });
+          const disp = head.headers.get('content-disposition');
+          if (disp && /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.test(disp)) {
+            const m = disp.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i);
+            filename = decodeURIComponent(m[1] || m[2]);
+          }
+        } catch (_) { /* ignore HEAD issues */ }
+
+        const resp = await fetch(currentUrl, { method: 'GET', mode: 'cors', credentials: 'omit', referrerPolicy: 'no-referrer', signal: ctrl.signal });
+        if (!resp.ok) throw new Error('http-' + resp.status);
+        const blob = await resp.blob();
+        clearTimeout(timer);
+
+        // Size sanity check (Instagram often rejects very large files via share sheet)
+        // Skip strict enforcement; just proceed. You can enforce if needed.
+        const mime = blob.type && blob.type !== 'application/octet-stream' ? blob.type : 'video/mp4';
+        if (!/mp4|quicktime|3gpp|x-matroska|webm/i.test(mime)) {
+          // Force mp4 container type; many apps expect this
+          return new File([blob], filename.endsWith('.mp4') ? filename : (filename + '.mp4'), { type: 'video/mp4' });
+        }
+        return new File([blob], filename, { type: mime });
+      } catch (err) {
+        clearTimeout(timer);
+        // Last resort: try to fetch without CORS (may be opaque and unusable)
+        // Fall back to instructing a manual download
+        throw err;
+      }
     }
 
     async function shareViaFiles(file) {
@@ -379,21 +404,20 @@
 
     // ---- "Share to Instagram Story" (best-effort using Web Share with files) ----
     async function shareToInstagramStory() {
-      /**
-       * IMPORTANT LIMITATION:
-       * The web cannot deep-link a video file directly into Instagram Stories across all browsers.
-       * The best available approach is Web Share with a File, which opens the OS share sheet; if Instagram supports receiving that file, selecting "Instagram" should open the Story composer with the video preloaded. This works on many modern iOS/Android setups but is ultimately device/app dependent.
-       */
       try {
+        // 1) HTTP GET the binary file
         const file = await getCurrentFile();
+        // 2) Send binary via Web Share (files) → user picks Instagram → Story
         const ok = await shareViaFiles(file);
         if (!ok) throw new Error('files-share-not-supported');
       } catch (err) {
-        // Fallback: download and guide manual upload
         const url = slides[current];
-        triggerDownload(url, (url.split('/').pop() || 'clip.mp4'));
-        alert('Your browser doesn\'t support sharing files directly to apps yet. The video has been downloaded — open Instagram and upload it to your Story manually.');
+        // Fallback: trigger download, user uploads to IG manually
+        const fn = (url.split('/').pop() || 'clip.mp4');
+        triggerDownload(url, fn);
+        alert("Couldn't share directly from the browser. The video has been downloaded — open Instagram and upload it to your Story.");
       }
+    }
     }
 
     shareTopBtn.addEventListener('click', shareCurrentSlide);
