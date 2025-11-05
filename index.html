@@ -29,35 +29,36 @@
     .stage { position: relative; height: 100dvh; aspect-ratio: 9 / 16; max-height: 100dvh; max-width: 100vw; width: auto; background: #000; overflow: hidden; }
     .progress { position: absolute; top: 8px; left: 8px; right: 8px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; z-index: 20; pointer-events: auto; }
     .progress .track { height: 3px; background: var(--bar-bg); border-radius: 999px; overflow: hidden; cursor: pointer; }
-    .progress .fill { width: 0%; height: 100%; background: var(--bar-fg); transform-origin: left center; transition: width 100ms linear; }
+    .progress .fill { height: 100%; width: 0%; background: var(--bar-fg); transform-origin: left center; transition: width 100ms linear; }
     video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
     .tapzone { position: absolute; top: 0; bottom: 0; width: 50%; z-index: 15; }
     .left { left: 0; } .right { right: 0; }
     .edge-hint { position:absolute; top:0; bottom:0; width:16%; z-index: 10; pointer-events:none; }
     .edge-left { left:0; background: linear-gradient(90deg, rgba(0,0,0,.35), rgba(0,0,0,0)); }
     .edge-right { right:0; background: linear-gradient(270deg, rgba(0,0,0,.35), rgba(0,0,0,0)); }
+
     .top-ui { position: absolute; left: 12px; right: 12px; top: 18px; display: flex; align-items: center; justify-content: space-between; z-index: 25; pointer-events: none; }
     .pill { pointer-events: auto; opacity: .9; }
     .btn { appearance: none; border: none; border-radius: 18px; padding: 10px 12px; font-weight: 600; color: #111; background: #fff; box-shadow: var(--shadow); cursor: pointer; }
     .btn.secondary { background: rgba(255,255,255,.15); color: #fff; backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,.25); }
     .btn.inline { padding: 10px 12px; border-radius: 12px; font-weight: 600; }
-    .gate { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,.6); z-index: 30; padding: 24px; text-align: center; }
-    .icon-btn { display: inline-grid; place-items: center; width: 64px; height: 64px; border-radius: 999px; background: #fff; color: #111; box-shadow: var(--shadow); cursor: pointer; border: none; }
-    .icon-btn svg { width: 28px; height: 28px; }
-    .playpause { position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 20px); transform: translateX(-50%); z-index: 26; display: grid; place-items: center; }
-    .playpause .icon-btn { width: 52px; height: 52px; background: rgba(255,255,255,.9); }
+
     .share { position: absolute; inset: 0; display: none; z-index: 40; background: linear-gradient(0deg, rgba(0,0,0,.8) 0%, rgba(0,0,0,.2) 45%, rgba(0,0,0,0) 70%); padding: 24px 16px calc(env(safe-area-inset-bottom) + 24px); align-content: end; gap: 12px; }
     .share.visible { display: grid; }
     .share .panel { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); border-radius: 18px; padding: 16px; backdrop-filter: blur(6px); }
     .share h2 { margin: 0 0 6px; font-size: 20px; }
     .share p { margin: 0 0 12px; color: var(--ui-muted); line-height: 1.35; }
     .share .row { display: flex; gap: 10px; flex-wrap: wrap; }
+
     .spotify { position: absolute; top: 50%; left: 50%; z-index: 45; display: none; opacity: 0; transform: translate(-50%, -50%) scale(0.98); transition: opacity .35s ease, transform .35s ease; width: min(92vw, 560px); border-radius: 12px; overflow: hidden; }
-    .spotify.visible { display: block; opacity: 1; transform: translate(-50%, -50%) scale(1); }
-      /* Hide the bottom play/pause control entirely */
-    .playpause { display: none !important; }
-    .gate { display: none !important; }
-</style>
+    .spotify.visible { display: block; }
+    .spotify.pop { animation: spotifyPop .4s cubic-bezier(.2,.8,.2,1) forwards; }
+    @keyframes spotifyPop { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.95); } 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+
+    /* Tap hint overlay */
+    .hint { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); padding:10px 14px; border-radius:12px; font-weight:700; background: rgba(0,0,0,.45); color:#fff; opacity:0; pointer-events:none; backdrop-filter: blur(6px); border:1px solid rgba(255,255,255,.25); transition: opacity .25s ease, transform .25s ease; }
+    .hint.visible { opacity:1; transform:translate(-50%,-50%) scale(1.02); }
+  </style>
 </head>
 <body>
   <div class="root">
@@ -83,27 +84,11 @@
       <div class="edge-hint edge-left"></div>
       <div class="edge-hint edge-right"></div>
 
+      <!-- Subtle hint shown only if autoplay with sound is blocked -->
+      <div class="hint" id="tapHint" aria-hidden="true">Tap to play ▶︎</div>
+
       <div class="spotify" id="spotifyPanel">
         <iframe data-testid="embed-iframe" style="border-radius:12px" data-src="https://open.spotify.com/embed/playlist/5h8G9staxe6l3dSb8CKU08?utm_source=generator&theme=0" width="100%" height="152" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
-      </div>
-
-      <div class="gate" id="gate" aria-label="Play">
-        <button class="icon-btn" id="startBtn" aria-label="Play">
-          <svg id="gatePlayIcon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M8 5v14l11-7-11-7z" fill="currentColor"/>
-          </svg>
-        </button>
-      </div>
-
-      <div class="playpause" id="playpause">
-        <button class="icon-btn" id="ppBtn" aria-label="Pause">
-          <svg id="ppPauseIcon" viewBox="0 0 24 24" fill="none">
-            <path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/>
-          </svg>
-          <svg id="ppPlayIcon" viewBox="0 0 24 24" fill="none" style="display:none">
-            <path d="M8 5v14l11-7-11-7z" fill="currentColor"/>
-          </svg>
-        </button>
       </div>
 
       <div class="share" id="share">
@@ -136,8 +121,6 @@
     const player = document.getElementById('player');
     const tapLeft = document.getElementById('tapLeft');
     const tapRight = document.getElementById('tapRight');
-    const gate = document.getElementById('gate');
-    const startBtn = document.getElementById('startBtn');
     const shareOverlay = document.getElementById('share');
     const shareBtn = document.getElementById('shareBtn');
     const igBtn = document.getElementById('igBtn');
@@ -146,11 +129,23 @@
     const replayBtn2 = document.getElementById('replayBtn2');
     const spotifyPanel = document.getElementById('spotifyPanel');
     const spotifyIframe = spotifyPanel.querySelector('iframe');
-    const ppBtn = document.getElementById('ppBtn');
-    const ppPauseIcon = document.getElementById('ppPauseIcon');
-    const ppPlayIcon = document.getElementById('ppPlayIcon');
     const shareTopBtn = document.getElementById('shareTopBtn');
     const igTopBtn = document.getElementById('igTopBtn');
+    const tapHint = document.getElementById('tapHint');
+
+    // Capability check: hide IG Story buttons if file sharing isn't supported
+    const supportsFileShare = (() => {
+      try {
+        if (!navigator.canShare) return false;
+        const probe = new File([""], "probe.mp4", { type: "video/mp4" });
+        return navigator.canShare({ files: [probe] });
+      } catch (_) { return false; }
+    })();
+
+    if (!supportsFileShare) {
+      try { igTopBtn.style.display = 'none'; } catch(_) {}
+      try { igBtn.style.display = 'none'; } catch(_) {}
+    }
 
     const SPOTIFY_LEAD_S = 2.0;
     let spotifyShown = false;
@@ -158,7 +153,7 @@
     let raf = null;
     let isPressing = false;
     let touchStartX = null;
-    let hasStarted = false;
+    let hasStarted = true; // we'll try autoplay; if blocked, flip to false & show hint
 
     const fills = [];
     const tracks = [];
@@ -178,17 +173,8 @@
 
     function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
 
-    function setPPState(paused) {
-      if (paused) {
-        ppPauseIcon.style.display = 'none';
-        ppPlayIcon.style.display = 'block';
-        ppBtn.setAttribute('aria-label', 'Play');
-      } else {
-        ppPauseIcon.style.display = 'block';
-        ppPlayIcon.style.display = 'none';
-        ppBtn.setAttribute('aria-label', 'Pause');
-      }
-    }
+    // No-op: we removed visible play/pause UI
+    function setPPState(_paused) {}
 
     function loadSlide(i, { autoplay = true } = {}) {
       current = clamp(i, 0, slides.length - 1);
@@ -199,8 +185,7 @@
       spotifyShown = false;
 
       for (let j = 0; j < slides.length; j++) {
-        if (j < current) fills[j].style.width = '100%';
-        else fills[j].style.width = '0%';
+        fills[j].style.width = j < current ? '100%' : '0%';
       }
 
       const url = slides[current];
@@ -214,11 +199,8 @@
         if (p && typeof p.catch === 'function') p.catch(() => {});
       };
 
-      if (player.readyState >= 2) {
-        maybePlay();
-      } else {
-        player.addEventListener('loadedmetadata', maybePlay, { once: true });
-      }
+      if (player.readyState >= 2) maybePlay();
+      else player.addEventListener('loadedmetadata', maybePlay, { once: true });
 
       cancelAnimationFrame(raf);
       tick();
@@ -242,7 +224,9 @@
             const src = spotifyIframe.getAttribute('data-src');
             if (src && !spotifyIframe.src) spotifyIframe.src = src;
             spotifyPanel.style.display = 'block';
-            requestAnimationFrame(() => spotifyPanel.classList.add('visible'));
+            spotifyPanel.classList.add('visible');
+            spotifyPanel.classList.add('pop');
+            spotifyPanel.addEventListener('animationend', () => spotifyPanel.classList.remove('pop'), { once: true });
             spotifyShown = true;
           }
         }
@@ -263,18 +247,17 @@
     player.addEventListener('ended', next);
 
     const pressStart = (e) => {
-      // If playback hasn't started yet, first tap starts it (no buttons)
+      // First interaction starts playback if autoplay (with sound) was blocked
       if (!hasStarted) {
         hasStarted = true;
+        if (tapHint) tapHint.classList.remove('visible');
         try { startPlayback(); } catch (_) {}
         return;
       }
-      if (getComputedStyle(gate).display !== 'none') return;
-      if (e && (e.target.closest('.gate') || e.target.closest('.progress') || e.target.closest('button'))) return;
       isPressing = true;
-      try { player.pause(); setPPState(true); } catch (e) {}
+      try { player.pause(); setPPState(true); } catch (err) {}
     };
-    const pressEnd = () => { if (!isPressing) return; isPressing = false; try { player.play(); setPPState(false); } catch (e) {} };
+    const pressEnd = () => { if (!isPressing) return; isPressing = false; try { player.play(); setPPState(false); } catch (err) {} };
     stage.addEventListener('pointerdown', pressStart);
     stage.addEventListener('pointerup', pressEnd);
     stage.addEventListener('pointercancel', pressEnd);
@@ -300,19 +283,10 @@
     });
 
     function startPlayback() {
-      player.muted = false;
-      gate.style.display = 'none';
+      if (tapHint) tapHint.classList.remove('visible');
       loadSlide(current, { autoplay: true });
       setPPState(false);
     }
-    gate.addEventListener('click', (e) => { if (e.target.closest('#startBtn')) startPlayback(); });
-    startBtn.addEventListener('click', (e) => { e.stopPropagation(); startPlayback(); });
-
-    ppBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (player.paused) { player.play(); setPPState(false); }
-      else { player.pause(); setPPState(true); }
-    });
 
     function replay() {
       current = 0;
@@ -351,18 +325,14 @@
         const blob = await resp.blob();
         clearTimeout(timer);
 
-        // Size sanity check (Instagram often rejects very large files via share sheet)
-        // Skip strict enforcement; just proceed. You can enforce if needed.
         const mime = blob.type && blob.type !== 'application/octet-stream' ? blob.type : 'video/mp4';
         if (!/mp4|quicktime|3gpp|x-matroska|webm/i.test(mime)) {
-          // Force mp4 container type; many apps expect this
+          // Force mp4 container type if ambiguous
           return new File([blob], filename.endsWith('.mp4') ? filename : (filename + '.mp4'), { type: 'video/mp4' });
         }
         return new File([blob], filename, { type: mime });
       } catch (err) {
         clearTimeout(timer);
-        // Last resort: try to fetch without CORS (may be opaque and unusable)
-        // Fall back to instructing a manual download
         throw err;
       }
     }
@@ -385,34 +355,31 @@
       a.remove();
     }
 
-    // ---- Generic Web Share button (kept for broad sharing) ----
+    // ---- Generic Web Share button (download → share file) ----
     async function shareCurrentSlide() {
-      const currentUrl = slides[current];
       try {
         const file = await getCurrentFile();
         const ok = await shareViaFiles(file);
-        if (ok) return; // User will pick Instagram → Story from the sheet if available
+        if (!ok) throw new Error('files-share-not-supported');
       } catch (e) {
-        // fall through to URL share / download
+        // Fallback: keep file local for manual IG upload
+        try {
+          const url = slides[current];
+          const fn = (url.split('/').pop() || 'clip.mp4');
+          triggerDownload(url, fn);
+        } catch (_) {}
+        alert('Your device/browser cannot share files directly. The video has been downloaded — open Instagram and upload it to your Story.');
       }
-
-      if (navigator.share) {
-        try { await navigator.share({ url: currentUrl }); return; } catch (e) {}
-      }
-      triggerDownload(currentUrl, (currentUrl.split('/').pop() || 'clip.mp4'));
     }
 
-    // ---- "Share to Instagram Story" (best-effort using Web Share with files) ----
+    // ---- "Share to Instagram Story" (download → share file) ----
     async function shareToInstagramStory() {
       try {
-        // 1) HTTP GET the binary file
         const file = await getCurrentFile();
-        // 2) Send binary via Web Share (files) → user picks Instagram → Story
         const ok = await shareViaFiles(file);
         if (!ok) throw new Error('files-share-not-supported');
       } catch (err) {
         const url = slides[current];
-        // Fallback: trigger download, user uploads to IG manually
         const fn = (url.split('/').pop() || 'clip.mp4');
         triggerDownload(url, fn);
         alert("Couldn't share directly from the browser. The video has been downloaded — open Instagram and upload it to your Story.");
@@ -422,14 +389,25 @@
     shareTopBtn.addEventListener('click', shareCurrentSlide);
     shareBtn.addEventListener('click', shareCurrentSlide);
     downloadBtn.addEventListener('click', () => triggerDownload(slides[current], (slides[current].split('/').pop() || 'clip.mp4')));
-
-    // New: dedicated IG Story buttons (top bar and share panel)
     igTopBtn.addEventListener('click', shareToInstagramStory);
     igBtn.addEventListener('click', shareToInstagramStory);
 
-    // Initial: do not autoplay until user taps
-    loadSlide(0, { autoplay: false });
-    setPPState(true);
+    // --- Autoplay on visit (WITH sound). If blocked, show hint & wait for first tap. ---
+    player.autoplay = true;
+    player.muted = false;
+    loadSlide(0, { autoplay: true });
+    setPPState(false);
+    const _autoplayTry = (player.play && player.play());
+    if (_autoplayTry && typeof _autoplayTry.catch === 'function') {
+      _autoplayTry.catch(() => { hasStarted = false; if (tapHint) tapHint.classList.add('visible'); });
+    }
+
+    // --- tiny smoke tests (non-fatal) ---
+    try {
+      console.assert(typeof getCurrentFile === 'function', 'getCurrentFile should be a function');
+      console.assert(Array.isArray(slides) && slides.length > 0, 'slides should be a non-empty array');
+      console.assert(document.getElementById('player') instanceof HTMLVideoElement, '#player should exist');
+    } catch(_) {}
   })();
   </script>
 </body>
