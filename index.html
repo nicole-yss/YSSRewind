@@ -41,19 +41,28 @@
     .btn { appearance: none; border: none; border-radius: 18px; padding: 10px 12px; font-weight: 600; color: #111; background: #fff; box-shadow: var(--shadow); cursor: pointer; }
     .btn.secondary { background: rgba(255,255,255,.15); color: #fff; backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,.25); }
     .btn.inline { padding: 10px 12px; border-radius: 12px; font-weight: 600; }
-    .gate { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,.6); z-index: 30; padding: 24px; text-align: center; }
-    .icon-btn { display: inline-grid; place-items: center; width: 64px; height: 64px; border-radius: 999px; background: #fff; color: #111; box-shadow: var(--shadow); cursor: pointer; border: none; }
-    .icon-btn svg { width: 28px; height: 28px; }
+    .gate { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,.6); z-index: 30; padding: 24px; text-align: center; transition: opacity .25s ease, transform .25s ease; }
+    .icon-btn { display: inline-grid; place-items: center; width: 64px; height: 64px; border-radius: 999px; background: transparent; color: #fff; box-shadow: none; cursor: pointer; border: none; }
+    .icon-btn svg { width: 60px; height: 60px; filter: drop-shadow(0 8px 30px rgba(0,0,0,.55)); opacity: .95; }
+    #startBtn.pulsing { animation: pulse 1.2s ease-in-out infinite; }
+    @keyframes pulse { 0% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.07); opacity: 1; } 100% { transform: scale(1); opacity: .9; } }
+    .gate.fade-out { animation: fadeOut .35s ease forwards; }
+    @keyframes fadeOut { to { opacity: 0; transform: scale(.98); } }
+
     .playpause { position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 20px); transform: translateX(-50%); z-index: 26; display: grid; place-items: center; }
-    .playpause .icon-btn { width: 52px; height: 52px; background: rgba(255,255,255,.9); }
+    .playpause .icon-btn { width: 52px; height: 52px; background: rgba(255,255,255,.9); color: #111; }
+
     .share { position: absolute; inset: 0; display: none; z-index: 40; background: linear-gradient(0deg, rgba(0,0,0,.8) 0%, rgba(0,0,0,.2) 45%, rgba(0,0,0,0) 70%); padding: 24px 16px calc(env(safe-area-inset-bottom) + 24px); align-content: end; gap: 12px; }
     .share.visible { display: grid; }
     .share .panel { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); border-radius: 18px; padding: 16px; backdrop-filter: blur(6px); }
     .share h2 { margin: 0 0 6px; font-size: 20px; }
     .share p { margin: 0 0 12px; color: var(--ui-muted); line-height: 1.35; }
     .share .row { display: flex; gap: 10px; flex-wrap: wrap; }
+
     .spotify { position: absolute; top: 50%; left: 50%; z-index: 45; display: none; opacity: 0; transform: translate(-50%, -50%) scale(0.98); transition: opacity .35s ease, transform .35s ease; width: min(92vw, 560px); border-radius: 12px; overflow: hidden; }
-    .spotify.visible { display: block; opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    .spotify.visible { display: block; }
+    .spotify.pop { animation: spotifyPop .4s cubic-bezier(.2,.8,.2,1) forwards; }
+    @keyframes spotifyPop { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.95); } 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
   </style>
 </head>
 <body>
@@ -86,6 +95,7 @@
 
       <div class="gate" id="gate" aria-label="Play">
         <button class="icon-btn" id="startBtn" aria-label="Play">
+          <!-- Transparent triangle play icon -->
           <svg id="gatePlayIcon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M8 5v14l11-7-11-7z" fill="currentColor"/>
           </svg>
@@ -148,6 +158,20 @@
     const ppPlayIcon = document.getElementById('ppPlayIcon');
     const shareTopBtn = document.getElementById('shareTopBtn');
     const igTopBtn = document.getElementById('igTopBtn');
+
+    // Capability check: show IG Story only if file sharing is supported
+    const supportsFileShare = (() => {
+      try {
+        if (!navigator.canShare) return false;
+        const test = new File([""], "x.mp4", { type: "video/mp4" });
+        return navigator.canShare({ files: [test] });
+      } catch (_) { return false; }
+    })();
+
+    if (!supportsFileShare) {
+      igTopBtn.style.display = 'none';
+      igBtn.style.display = 'none';
+    }
 
     const SPOTIFY_LEAD_S = 2.0;
     let spotifyShown = false;
@@ -238,7 +262,9 @@
             const src = spotifyIframe.getAttribute('data-src');
             if (src && !spotifyIframe.src) spotifyIframe.src = src;
             spotifyPanel.style.display = 'block';
-            requestAnimationFrame(() => spotifyPanel.classList.add('visible'));
+            spotifyPanel.classList.add('visible');
+            spotifyPanel.classList.add('pop');
+            spotifyPanel.addEventListener('animationend', () => spotifyPanel.classList.remove('pop'), { once: true });
             spotifyShown = true;
           }
         }
@@ -291,7 +317,16 @@
 
     function startPlayback() {
       player.muted = false;
-      gate.style.display = 'none';
+      // Animate the gate away and then hide it so the play button isn't visible after tap
+      gate.classList.add('fade-out');
+      gate.addEventListener('animationend', () => {
+        gate.style.display = 'none';
+        gate.classList.remove('fade-out');
+      }, { once: true });
+
+      // Stop pulsing once playback starts
+      startBtn.classList.remove('pulsing');
+
       loadSlide(current, { autoplay: true });
       setPPState(false);
     }
@@ -322,11 +357,6 @@
       const currentUrl = slides[current];
       const resp = await fetch(currentUrl, { mode: 'cors' });
       const blob = await resp.blob();
-      // Normalize to a common extension/mime that Instagram accepts
-      /**
-       * NOTE: Instagram typically accepts H.264/AAC in .mp4 containers.
-       * We keep metadata minimal; some apps reject extra fields.
-       */
       const filename = (currentUrl.split('/').pop() || 'clip.mp4').replace(/\?.*$/, '');
       const type = blob.type && blob.type !== 'application/octet-stream' ? blob.type : 'video/mp4';
       return new File([blob], filename.endsWith('.mp4') ? filename : (filename + '.mp4'), { type });
@@ -334,7 +364,6 @@
 
     async function shareViaFiles(file) {
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        // Keep fields minimal — some targets (Instagram) are picky
         await navigator.share({ files: [file] }).catch(() => {});
         return true;
       }
@@ -369,17 +398,11 @@
 
     // ---- "Share to Instagram Story" (best-effort using Web Share with files) ----
     async function shareToInstagramStory() {
-      /**
-       * IMPORTANT LIMITATION:
-       * The web cannot deep-link a video file directly into Instagram Stories across all browsers.
-       * The best available approach is Web Share with a File, which opens the OS share sheet; if Instagram supports receiving that file, selecting "Instagram" should open the Story composer with the video preloaded. This works on many modern iOS/Android setups but is ultimately device/app dependent.
-       */
       try {
         const file = await getCurrentFile();
         const ok = await shareViaFiles(file);
         if (!ok) throw new Error('files-share-not-supported');
       } catch (err) {
-        // Fallback: download and guide manual upload
         const url = slides[current];
         triggerDownload(url, (url.split('/').pop() || 'clip.mp4'));
         alert('Your browser doesn\'t support sharing files directly to apps yet. The video has been downloaded — open Instagram and upload it to your Story manually.');
@@ -390,13 +413,14 @@
     shareBtn.addEventListener('click', shareCurrentSlide);
     downloadBtn.addEventListener('click', () => triggerDownload(slides[current], (slides[current].split('/').pop() || 'clip.mp4')));
 
-    // New: dedicated IG Story buttons (top bar and share panel)
+    // Dedicated IG Story buttons (top bar and share panel)
     igTopBtn.addEventListener('click', shareToInstagramStory);
     igBtn.addEventListener('click', shareToInstagramStory);
 
-    // Initial: do not autoplay until user taps
+    // Initial: do not autoplay until user taps — pulse the play button to invite interaction
     loadSlide(0, { autoplay: false });
     setPPState(true);
+    startBtn.classList.add('pulsing');
   })();
   </script>
 </body>
