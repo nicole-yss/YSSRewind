@@ -1,0 +1,8 @@
+
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.yss.instagramstory">
+    <queries>
+        <package android:name="com.instagram.android"/>
+    </queries>
+    <application />
+</manifest>

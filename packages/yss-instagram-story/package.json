@@ -1,0 +1,31 @@
+{
+  "name": "@yss/instagram-story",
+  "version": "1.0.0",
+  "description": "Capacitor plugin to share videos directly to Instagram Stories (iOS/Android).",
+  "author": "YSS",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "ios",
+    "android",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@capacitor/core": "^6.0.0",
+    "typescript": "^5.0.0"
+  },
+  "capacitor": {
+    "ios": {
+      "src": "ios"
+    },
+    "android": {
+      "src": "android"
+    }
+  }
+}
