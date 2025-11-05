@@ -26,18 +26,33 @@
       overflow: hidden;
     }
 
+    /* Fullscreen black canvas */
     .root {
       position: relative;
       width: 100vw;
       height: 100dvh;
-      overflow: hidden;
       background: #000;
+      display: grid;
+      place-items: center;
     }
 
-    /* Top progress bars (like Instagram Stories) */
+    /* 9:16 stage centered on all screens (letterboxed on desktop) */
+    .stage {
+      position: relative;
+      height: 100dvh;          /* prioritize height */
+      aspect-ratio: 9 / 16;    /* enforce 9:16 */
+      max-height: 100dvh;
+      max-width: 100vw;
+      width: auto;             /* computed by aspect-ratio */
+      background: #000;
+      overflow: hidden;
+      border-radius: 0;        /* tweak if you want rounded corners on desktop */
+    }
+
+    /* Top progress bars (inside stage) */
     .progress {
       position: absolute;
-      top: calc(env(safe-area-inset-top) + 8px);
+      top: 8px;
       left: 8px;
       right: 8px;
       display: grid;
@@ -61,13 +76,13 @@
       transition: width 100ms linear;
     }
 
-    /* Video takes entire viewport */
+    /* Video fills the 9:16 stage */
     video#player {
       position: absolute;
       inset: 0;
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      object-fit: cover; /* your clips are 9:16; cover keeps them edge-to-edge */
       background: #000;
     }
 
@@ -86,7 +101,31 @@
     .edge-left { left:0; background: linear-gradient(90deg, rgba(0,0,0,.35), rgba(0,0,0,0)); }
     .edge-right { right:0; background: linear-gradient(270deg, rgba(0,0,0,.35), rgba(0,0,0,0)); }
 
-    /* Minimal gate (autoplay requires a user gesture) */
+    /* Top UI inside stage */
+    .top-ui {
+      position: absolute;
+      left: 12px; right: 12px;
+      top: 18px;
+      display: flex; align-items: center; justify-content: space-between;
+      z-index: 25; pointer-events: none;
+    }
+    .pill { pointer-events: auto; opacity: .9; }
+
+    .btn {
+      appearance: none;
+      border: none;
+      border-radius: 18px;
+      padding: 10px 12px;
+      font-weight: 600;
+      color: #111;
+      background: #fff;
+      box-shadow: var(--shadow);
+      cursor: pointer;
+    }
+    .btn.secondary { background: rgba(255,255,255,.15); color: #fff; backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,.25); }
+    .btn.inline { padding: 10px 12px; border-radius: 12px; font-weight: 600; }
+
+    /* Gate overlay (icon-only) */
     .gate {
       position: absolute;
       inset: 0;
@@ -97,30 +136,35 @@
       padding: 24px;
       text-align: center;
     }
-    .btn {
-      appearance: none;
-      border: none;
-      border-radius: 18px;
-      padding: 14px 18px;
-      font-weight: 600;
-      color: #111;
+    .icon-btn {
+      display: inline-grid;
+      place-items: center;
+      width: 64px; height: 64px;
+      border-radius: 999px;
       background: #fff;
+      color: #111;
       box-shadow: var(--shadow);
       cursor: pointer;
+      border: none;
     }
-    .btn.secondary { background: rgba(255,255,255,.15); color: #fff; backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,.25); }
-    .btn.inline { padding: 10px 12px; border-radius: 12px; font-weight: 600; }
+    .icon-btn svg { width: 28px; height: 28px; }
 
-    .top-ui {
+    /* Floating play/pause control during playback */
+    .playpause {
       position: absolute;
-      left: 12px; right: 12px;
-      top: calc(env(safe-area-inset-top) + 18px);
-      display: flex; align-items: center; justify-content: space-between;
-      z-index: 25; pointer-events: none;
+      left: 50%;
+      bottom: calc(env(safe-area-inset-bottom) + 20px);
+      transform: translateX(-50%);
+      z-index: 26;
+      display: grid;
+      place-items: center;
     }
-    .pill { pointer-events: auto; opacity: .9; }
+    .playpause .icon-btn {
+      width: 52px; height: 52px;
+      background: rgba(255,255,255,.9);
+    }
 
-    /* Share overlay at the end */
+    /* Share overlay shown after last video finishes */
     .share {
       position: absolute;
       inset: 0;
@@ -144,8 +188,9 @@
     .share .row { display: flex; gap: 10px; }
 
     /* Accessibility: prevent accidental selection */
-    .tapzone, .btn { -webkit-user-select: none; user-select: none; }
-      /* Spotify embed panel */
+    .tapzone, .btn, .icon-btn { -webkit-user-select: none; user-select: none; }
+
+    /* Spotify embed panel */
     .spotify {
       position: absolute;
       top: 50%;
@@ -163,55 +208,75 @@
   </style>
 </head>
 <body>
-  <div class="root" id="app">
-    <!-- Progress bars -->
-    <div class="progress" id="progress"></div>
+  <div class="root">
+    <!-- 9:16 stage -->
+    <div class="stage" id="stage">
+      <!-- Progress bars -->
+      <div class="progress" id="progress"></div>
 
-    <!-- Top UI: logo/title + Share + Replay -->
-    <div class="top-ui">
-      <div style="display:flex; align-items:center; gap:8px; opacity:.9">
-        <div style="width:28px;height:28px;border-radius:999px;background:#fff"></div>
-        <div style="font-weight:700">YSSLoyalty Rewind</div>
-      </div>
-      <div style="display:flex; gap:8px; align-items:center;" class="actions">
-        <button id="shareTopBtn" class="btn inline pill">Share…</button>
-        <button id="replayBtn" class="btn inline pill" style="display:none">Replay</button>
-      </div>
-    </div>
-
-    <!-- Video player -->
-    <video id="player" playsinline preload="metadata"></video>
-
-    <!-- Tap zones (left/right) -->
-    <div class="tapzone left" id="tapLeft" aria-label="Previous story" role="button"></div>
-    <div class="tapzone right" id="tapRight" aria-label="Next story" role="button"></div>
-
-    <div class="edge-hint edge-left"></div>
-    <div class="edge-hint edge-right"></div>
-
-    <!-- Spotify embed (appears near the end of the last slide) -->
-    <div class="spotify" id="spotifyPanel">
-      <iframe data-testid="embed-iframe" style="border-radius:12px" data-src="https://open.spotify.com/embed/playlist/5h8G9staxe6l3dSb8CKU08?utm_source=generator&theme=0" width="100%" height="152" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
-    </div>
-
-    <!-- Minimal Autoplay gate -->
-    <div class="gate" id="gate">
-      <div>
-        <button class="btn" id="startBtn">Play</button>
-      </div>
-    </div>
-
-    <!-- Share overlay shown after last video finishes -->
-    <div class="share" id="share">
-      <div class="panel">
-        <h2>Done! Share it</h2>
-        <p>Choose Instagram → Story from your Share sheet, or download and upload manually.</p>
-        <div class="row">
-          <button class="btn" id="shareBtn">Share…</button>
-          <button class="btn secondary" id="downloadBtn">Download video</button>
+      <!-- Top UI: logo/title + Share + Replay -->
+      <div class="top-ui">
+        <div style="display:flex; align-items:center; gap:8px; opacity:.9">
+          <div style="width:28px;height:28px;border-radius:999px;background:#fff"></div>
+          <div style="font-weight:700">YSSLoyalty Rewind</div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;" class="actions">
+          <button id="shareTopBtn" class="btn inline pill">Share…</button>
+          <button id="replayBtn" class="btn inline pill" style="display:none">Replay</button>
         </div>
       </div>
-      <button class="btn" id="replayBtn2" style="justify-self:center; margin-top:6px;">Replay</button>
+
+      <!-- Video player -->
+      <video id="player" playsinline preload="metadata"></video>
+
+      <!-- Tap zones (left/right) -->
+      <div class="tapzone left" id="tapLeft" aria-label="Previous story" role="button"></div>
+      <div class="tapzone right" id="tapRight" aria-label="Next story" role="button"></div>
+
+      <div class="edge-hint edge-left"></div>
+      <div class="edge-hint edge-right"></div>
+
+      <!-- Spotify embed (appears near the end of the last slide) -->
+      <div class="spotify" id="spotifyPanel">
+        <iframe data-testid="embed-iframe" style="border-radius:12px" data-src="https://open.spotify.com/embed/playlist/5h8G9staxe6l3dSb8CKU08?utm_source=generator&theme=0" width="100%" height="152" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
+      </div>
+
+      <!-- Minimal Autoplay gate (icon-only) -->
+      <div class="gate" id="gate" aria-label="Play">
+        <button class="icon-btn" id="startBtn" aria-label="Play">
+          <!-- Play icon -->
+          <svg id="gatePlayIcon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M8 5v14l11-7-11-7z" fill="currentColor"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Floating play/pause control -->
+      <div class="playpause" id="playpause">
+        <button class="icon-btn" id="ppBtn" aria-label="Pause">
+          <!-- Pause icon (default while playing) -->
+          <svg id="ppPauseIcon" viewBox="0 0 24 24" fill="none">
+            <path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/>
+          </svg>
+          <!-- Play icon (hidden initially) -->
+          <svg id="ppPlayIcon" viewBox="0 0 24 24" fill="none" style="display:none">
+            <path d="M8 5v14l11-7-11-7z" fill="currentColor"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Share overlay shown after last video finishes -->
+      <div class="share" id="share">
+        <div class="panel">
+          <h2>Done! Share it</h2>
+          <p>Choose Instagram → Story from your Share sheet, or download and upload manually.</p>
+          <div class="row">
+            <button class="btn" id="shareBtn">Share…</button>
+            <button class="btn secondary" id="downloadBtn">Download video</button>
+          </div>
+        </div>
+        <button class="btn" id="replayBtn2" style="justify-self:center; margin-top:6px;">Replay</button>
+      </div>
     </div>
   </div>
 
@@ -226,7 +291,7 @@
         "https://storage.googleapis.com/yss_media/NURSE%20JEI/%235.mp4",
       ];
 
-      const app = document.getElementById('app');
+      const stage = document.getElementById('stage');
       const progressRoot = document.getElementById('progress');
       const player = document.getElementById('player');
       const tapLeft = document.getElementById('tapLeft');
@@ -240,6 +305,9 @@
       const replayBtn2 = document.getElementById('replayBtn2');
       const spotifyPanel = document.getElementById('spotifyPanel');
       const spotifyIframe = spotifyPanel.querySelector('iframe');
+      const ppBtn = document.getElementById('ppBtn');
+      const ppPauseIcon = document.getElementById('ppPauseIcon');
+      const ppPlayIcon = document.getElementById('ppPlayIcon');
       const SPOTIFY_LEAD_S = 2.0; // seconds before the end to reveal
       let spotifyShown = false;
 
@@ -266,6 +334,18 @@
       }
 
       function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+
+      function setPPState(paused) {
+        if (paused) {
+          ppPauseIcon.style.display = 'none';
+          ppPlayIcon.style.display = 'block';
+          ppBtn.setAttribute('aria-label', 'Play');
+        } else {
+          ppPauseIcon.style.display = 'block';
+          ppPlayIcon.style.display = 'none';
+          ppBtn.setAttribute('aria-label', 'Pause');
+        }
+      }
 
       function loadSlide(i, { autoplay = true } = {}) {
         current = clamp(i, 0, slides.length - 1);
@@ -338,6 +418,7 @@
         replayBtn.style.display = 'inline-flex';
         shareOverlay.classList.add('visible');
         try { player.pause(); } catch (e) {}
+        setPPState(true);
       }
 
       // Event wiring (tap & click)
@@ -345,23 +426,23 @@
       tapLeft.addEventListener('click', prev);
       player.addEventListener('ended', next);
 
-      // Press & hold to pause / resume
+      // Press & hold to pause / resume (kept)
       const pressStart = (e) => {
         // Ignore press-to-pause if gate or UI buttons are tapped
         if (getComputedStyle(gate).display !== 'none') return;
         if (e && (e.target.closest('.gate') || e.target.closest('.progress') || e.target.closest('button'))) return;
         isPressing = true;
-        try { player.pause(); } catch (e) {}
+        try { player.pause(); setPPState(true); } catch (e) {}
       };
-      const pressEnd = () => { if (!isPressing) return; isPressing = false; try { player.play(); } catch (e) {} };
-      app.addEventListener('pointerdown', pressStart);
-      app.addEventListener('pointerup', pressEnd);
-      app.addEventListener('pointercancel', pressEnd);
-      app.addEventListener('pointerleave', pressEnd);
+      const pressEnd = () => { if (!isPressing) return; isPressing = false; try { player.play(); setPPState(false); } catch (e) {} };
+      stage.addEventListener('pointerdown', pressStart);
+      stage.addEventListener('pointerup', pressEnd);
+      stage.addEventListener('pointercancel', pressEnd);
+      stage.addEventListener('pointerleave', pressEnd);
 
       // Swipe navigation (touch)
-      app.addEventListener('touchstart', (e) => { touchStartX = e.changedTouches[0].clientX; }, { passive: true });
-      app.addEventListener('touchend', (e) => {
+      stage.addEventListener('touchstart', (e) => { touchStartX = e.changedTouches[0].clientX; }, { passive: true });
+      stage.addEventListener('touchend', (e) => {
         if (touchStartX == null) return;
         const dx = e.changedTouches[0].clientX - touchStartX;
         touchStartX = null;
@@ -377,17 +458,27 @@
       });
 
       // Visibility handling to pause when tab goes background
-      document.addEventListener('visibilitychange', () => { if (document.hidden) { try { player.pause(); } catch (e) {} } });
+      document.addEventListener('visibilitychange', () => { if (document.hidden) { try { player.pause(); setPPState(true); } catch (e) {} } });
 
       // Gate controls (start with sound ON after a tap)
       function startPlayback() {
         player.muted = false;
         gate.style.display = 'none';
         loadSlide(current, { autoplay: true });
+        setPPState(false);
       }
-      // Tap anywhere on the gate or the Play button to start
-      gate.addEventListener('click', startPlayback);
+      // Gate click or icon button
+      gate.addEventListener('click', (e) => {
+        if (e.target.closest('#startBtn')) startPlayback();
+      });
       startBtn.addEventListener('click', (e) => { e.stopPropagation(); startPlayback(); });
+
+      // Persistent play/pause control
+      ppBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (player.paused) { player.play(); setPPState(false); }
+        else { player.pause(); setPPState(true); }
+      });
 
       // Replay
       function replay() {
@@ -399,6 +490,7 @@
         spotifyPanel.style.display = 'none';
         spotifyShown = false;
         loadSlide(0);
+        setPPState(false);
       }
       replayBtn.addEventListener('click', replay);
       replayBtn2.addEventListener('click', replay);
@@ -442,21 +534,9 @@
       shareBtn.addEventListener('click', shareVideo);
       downloadBtn.addEventListener('click', () => triggerDownload(slides[current], slides[current].split('/').pop() || 'clip.mp4'));
 
-      // Basic error diagnostics
-      player.addEventListener('error', () => {
-        const err = player.error;
-        let msg = 'Playback error.';
-        if (err) {
-          const map = {1:'aborted',2:'network',3:'decode',4:'src not supported'};
-          msg += ` Code ${err.code} (${map[err.code]||'unknown'}).`;
-        }
-        console.warn(msg);
-        // As a last resort, reveal native controls so user can try manually
-        player.setAttribute('controls', 'controls');
-      });
-
       // Initial state: load first slide but keep gate visible; don't autoplay until tap
       loadSlide(0, { autoplay: false });
+      setPPState(true);
     })();
   </script>
 </body>
