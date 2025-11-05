@@ -91,12 +91,10 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
 
 /* Spotify embed panel */
 .spotify {
-  position: absolute; top: 50%; left: 50%; z-index: 45;
+  position: absolute; top: 60%; left: 50%; z-index: 45;
   display: none; opacity: 0; transform: translate(-50%, -50%) scale(0.98);
   transition: opacity .35s ease, transform .35s ease;
   width: min(92vw, 560px); border-radius: 12px; overflow: hidden;
-  padding-top: 100px;               /* ⬅️ added */
-  box-sizing: border-box;
 }
 .spotify.visible { display: block; opacity: 1; transform: translate(-50%, -50%) scale(1); }
 </style>
