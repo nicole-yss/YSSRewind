@@ -153,7 +153,7 @@
     let raf = null;
     let isPressing = false;
     let touchStartX = null;
-    let hasStarted = true; // we'll try autoplay; if blocked, flip to false & show hint
+    let hasStarted = false; // no autoplay; first tap will start playback
 
     const fills = [];
     const tracks = [];
@@ -297,6 +297,8 @@
 
     function startPlayback() {
       if (tapHint) tapHint.classList.remove('visible');
+      // Re-enable nav once playback has started
+      setTapzonesEnabled(true);
       loadSlide(current, { autoplay: true });
       setPPState(false);
     }
@@ -369,7 +371,7 @@
       a.remove();
     }
 
-    // ---- Share overlay flow: download placeholder asset → save → (optionally) share → open Instagram ----
+    // ---- Share overlay flow: download placeholder asset → save → then open Instagram ----
     async function shareOverlayFlow() {
       try {
         const ctrl = new AbortController();
@@ -380,7 +382,7 @@
         clearTimeout(timer);
         const file = new File([blob], 'yss-instagram-story.mp4', { type: blob.type || 'video/mp4' });
 
-        // 1) Save to device (best-effort)
+        // 1) Save to device (best-effort). This triggers a real file download, not a link to the URL.
         const url = URL.createObjectURL(file);
         const a = document.createElement('a');
         a.href = url;
@@ -388,15 +390,11 @@
         document.body.appendChild(a);
         a.click();
         a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 2000);
+        // Give the browser a brief moment to start the download before navigating away
+        setTimeout(() => URL.revokeObjectURL(url), 3000);
 
-        // 2) Try to share directly as a file too (some users prefer straight to IG)
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          try { await navigator.share({ files: [file] }); } catch (_) { /* user canceled or unsupported target */ }
-        }
-
-        // 3) Attempt to open Instagram Stories camera
-        openInstagramStories();
+        // 2) After initiating the download, open Instagram Stories (no file passed via deeplink)
+        setTimeout(() => openInstagramStories(), 400);
       } catch (err) {
         alert('We could not save the Instagram Story asset automatically. Please check your connection and try again.');
       }
@@ -434,15 +432,11 @@
     downloadBtn.addEventListener('click', () => triggerDownload(slides[current], (slides[current].split('/') .pop() || 'clip.mp4')));
     if (igTopBtn) igTopBtn.addEventListener('click', shareCurrentSlide);
 
-    // --- Autoplay on visit (WITH sound). If blocked, show hint & wait for first tap. ---
-    player.autoplay = true;
-    player.muted = false;
-    loadSlide(0, { autoplay: true });
-    setPPState(false);
-    const _autoplayTry = (player.play && player.play());
-    if (_autoplayTry && typeof _autoplayTry.catch === 'function') {
-      _autoplayTry.catch(() => { hasStarted = false; if (tapHint) tapHint.classList.add('visible'); });
-    }
+    // --- No autoplay on visit: load first slide paused and show hint ---
+    player.autoplay = false;
+    loadSlide(0, { autoplay: false });
+    setPPState(true);
+    if (tapHint) tapHint.classList.add('visible');
 
     // --- smoke tests (console-only) ---
     try {
@@ -451,6 +445,8 @@
       console.assert(document.getElementById('player') instanceof HTMLVideoElement, '#player should exist');
       console.assert(typeof shareOverlayFlow === 'function', 'shareOverlayFlow should be defined');
       console.assert(typeof shareCurrentSlide === 'function', 'shareCurrentSlide should be defined');
+      console.assert(typeof openInstagramStories === 'function', 'openInstagramStories should be defined');
+      console.assert(String(openInstagramStories).includes('instagram://story-camera'), 'openInstagramStories should deep link to Instagram');
     } catch(_) {}
   })();
   </script>
