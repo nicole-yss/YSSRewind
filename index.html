@@ -51,7 +51,7 @@
     .share .panel { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); border-radius: 18px; padding: 16px; backdrop-filter: blur(6px); }
     .share h2 { margin: 0 0 6px; font-size: 20px; }
     .share p { margin: 0 0 12px; color: var(--ui-muted); line-height: 1.35; }
-    .share .row { display: flex; gap: 10px; }
+    .share .row { display: flex; gap: 10px; flex-wrap: wrap; }
     .spotify { position: absolute; top: 50%; left: 50%; z-index: 45; display: none; opacity: 0; transform: translate(-50%, -50%) scale(0.98); transition: opacity .35s ease, transform .35s ease; width: min(92vw, 560px); border-radius: 12px; overflow: hidden; }
     .spotify.visible { display: block; opacity: 1; transform: translate(-50%, -50%) scale(1); }
   </style>
@@ -67,6 +67,7 @@
         </div>
         <div style="display:flex; gap:8px; align-items:center;" class="actions">
           <button id="shareTopBtn" class="btn inline pill">Share…</button>
+          <button id="igTopBtn" class="btn inline pill">IG Story</button>
           <button id="replayBtn" class="btn inline pill" style="display:none">Replay</button>
         </div>
       </div>
@@ -108,6 +109,7 @@
           <p>Choose Instagram → Story from your Share sheet, or download and upload manually.</p>
           <div class="row">
             <button class="btn" id="shareBtn">Share…</button>
+            <button class="btn" id="igBtn">IG Story</button>
             <button class="btn secondary" id="downloadBtn">Download video</button>
           </div>
         </div>
@@ -135,6 +137,7 @@
     const startBtn = document.getElementById('startBtn');
     const shareOverlay = document.getElementById('share');
     const shareBtn = document.getElementById('shareBtn');
+    const igBtn = document.getElementById('igBtn');
     const downloadBtn = document.getElementById('downloadBtn');
     const replayBtn = document.getElementById('replayBtn');
     const replayBtn2 = document.getElementById('replayBtn2');
@@ -144,6 +147,7 @@
     const ppPauseIcon = document.getElementById('ppPauseIcon');
     const ppPlayIcon = document.getElementById('ppPlayIcon');
     const shareTopBtn = document.getElementById('shareTopBtn');
+    const igTopBtn = document.getElementById('igTopBtn');
 
     const SPOTIFY_LEAD_S = 2.0;
     let spotifyShown = false;
@@ -313,37 +317,28 @@
     replayBtn.addEventListener('click', replay);
     replayBtn2.addEventListener('click', replay);
 
-    // ---- Web Share API (files) implementation ----
-    async function shareCurrentSlide() {
+    // ---- Helpers for Web Share (files) ----
+    async function getCurrentFile() {
       const currentUrl = slides[current];
+      const resp = await fetch(currentUrl, { mode: 'cors' });
+      const blob = await resp.blob();
+      // Normalize to a common extension/mime that Instagram accepts
+      /**
+       * NOTE: Instagram typically accepts H.264/AAC in .mp4 containers.
+       * We keep metadata minimal; some apps reject extra fields.
+       */
+      const filename = (currentUrl.split('/').pop() || 'clip.mp4').replace(/\?.*$/, '');
+      const type = blob.type && blob.type !== 'application/octet-stream' ? blob.type : 'video/mp4';
+      return new File([blob], filename.endsWith('.mp4') ? filename : (filename + '.mp4'), { type });
+    }
 
-      // Try to fetch the file and use navigator.share({ files })
-      try {
-        const resp = await fetch(currentUrl, { mode: 'cors' });
-        const blob = await resp.blob();
-        const file = new File([blob], (currentUrl.split('/').pop() || 'clip.mp4'), { type: blob.type || 'video/mp4' });
-
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          // IMPORTANT: keep metadata minimal to avoid iOS Instagram errors
-          await navigator.share({ files: [file] });
-          return;
-        }
-      } catch (e) {
-        // ignore and try URL share next
+    async function shareViaFiles(file) {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        // Keep fields minimal — some targets (Instagram) are picky
+        await navigator.share({ files: [file] }).catch(() => {});
+        return true;
       }
-
-      // If file-share not supported, try URL share (opens share sheet but Instagram may treat as link)
-      if (navigator.share) {
-        try {
-          await navigator.share({ url: currentUrl });
-          return;
-        } catch (e) {
-          // user canceled or unsupported — fall through to download
-        }
-      }
-
-      // Last resort: trigger a download so user can upload manually
-      triggerDownload(currentUrl, (currentUrl.split('/').pop() || 'clip.mp4'));
+      return false;
     }
 
     function triggerDownload(url, filename) {
@@ -355,9 +350,49 @@
       a.remove();
     }
 
+    // ---- Generic Web Share button (kept for broad sharing) ----
+    async function shareCurrentSlide() {
+      const currentUrl = slides[current];
+      try {
+        const file = await getCurrentFile();
+        const ok = await shareViaFiles(file);
+        if (ok) return; // User will pick Instagram → Story from the sheet if available
+      } catch (e) {
+        // fall through to URL share / download
+      }
+
+      if (navigator.share) {
+        try { await navigator.share({ url: currentUrl }); return; } catch (e) {}
+      }
+      triggerDownload(currentUrl, (currentUrl.split('/').pop() || 'clip.mp4'));
+    }
+
+    // ---- "Share to Instagram Story" (best-effort using Web Share with files) ----
+    async function shareToInstagramStory() {
+      /**
+       * IMPORTANT LIMITATION:
+       * The web cannot deep-link a video file directly into Instagram Stories across all browsers.
+       * The best available approach is Web Share with a File, which opens the OS share sheet; if Instagram supports receiving that file, selecting "Instagram" should open the Story composer with the video preloaded. This works on many modern iOS/Android setups but is ultimately device/app dependent.
+       */
+      try {
+        const file = await getCurrentFile();
+        const ok = await shareViaFiles(file);
+        if (!ok) throw new Error('files-share-not-supported');
+      } catch (err) {
+        // Fallback: download and guide manual upload
+        const url = slides[current];
+        triggerDownload(url, (url.split('/').pop() || 'clip.mp4'));
+        alert('Your browser doesn\'t support sharing files directly to apps yet. The video has been downloaded — open Instagram and upload it to your Story manually.');
+      }
+    }
+
     shareTopBtn.addEventListener('click', shareCurrentSlide);
     shareBtn.addEventListener('click', shareCurrentSlide);
     downloadBtn.addEventListener('click', () => triggerDownload(slides[current], (slides[current].split('/').pop() || 'clip.mp4')));
+
+    // New: dedicated IG Story buttons (top bar and share panel)
+    igTopBtn.addEventListener('click', shareToInstagramStory);
+    igBtn.addEventListener('click', shareToInstagramStory);
 
     // Initial: do not autoplay until user taps
     loadSlide(0, { autoplay: false });
