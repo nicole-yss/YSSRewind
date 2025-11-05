@@ -106,19 +106,13 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
     <!-- Progress bars -->
     <div class="progress" id="progress"></div>
 
-    <!-- Top UI: logo/title + Share (icon) + Replay -->
+    <!-- Top UI: logo/title + (no share button) + Replay -->
     <div class="top-ui">
       <div style="display:flex; align-items:center; gap:8px; opacity:.9">
         <div style="width:28px;height:28px;border-radius:999px;background:#fff"></div>
         <div style="font-weight:700">YSSLoyalty Rewind</div>
       </div>
       <div style="display:flex; gap:8px; align-items:center;" class="actions">
-        <!-- Share icon button (arrow) -->
-        <button id="shareTopBtn" class="btn inline pill" aria-label="Share">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
-            <path d="M12 3l4 4m0 0-4 4m4-4H8a5 5 0 00-5 5v7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
         <button id="replayBtn" class="btn inline pill" style="display:none">Replay</button>
       </div>
     </div>
@@ -168,7 +162,7 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
     "https://storage.googleapis.com/yss_media/NURSE%20JEI/%235.mp4",
   ];
 
-  // ⬇️ Replace this with your final compiled/story video URL when ready
+  // Replace with your final compiled/story video URL when ready
   const SHARE_FILE_URL = "https://example.com/YSSLoyalty-Rewind-FINAL.mp4";
 
   const stage = document.getElementById('stage');
@@ -186,8 +180,8 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
   const spotifyPanel = document.getElementById('spotifyPanel');
   const spotifyIframe = spotifyPanel.querySelector('iframe');
 
-  // Earlier reveal by 0.8s: 2.0 -> 2.8
-  const SPOTIFY_LEAD_S = 2.8; // seconds before the end to reveal
+  // Spotify appears 1.2s earlier than before (2.8s -> 4.0s before end)
+  const SPOTIFY_LEAD_S = 4.0;
 
   let spotifyShown = false;
   let current = 0;
@@ -254,7 +248,7 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
   function prev() {
     if (player.currentTime > 0.25) player.currentTime = 0;
     else if (current > 0) loadSlide(current - 1);
-  }
+    }
 
   function tick() {
     // Update progress bars
@@ -365,13 +359,13 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
     a.remove();
   }
 
-  // NEW Share logic: always download the provided final file instead of sharing current slide
+  // Share overlay: always download the provided final file instead of sharing current slide
   async function shareVideo() {
     const fname = SHARE_FILE_URL.split('/').pop() || 'YSSLoyalty-Rewind.mp4';
     triggerDownload(SHARE_FILE_URL, fname);
   }
 
-  document.getElementById('shareTopBtn').addEventListener('click', shareVideo);
+  // No top-right share button anymore
   shareBtn.addEventListener('click', shareVideo);
   downloadBtn.addEventListener('click', () => {
     const filename = slides[current].split('/').pop() || 'clip.mp4';
