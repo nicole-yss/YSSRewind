@@ -93,12 +93,11 @@
 
       <div class="share" id="share">
         <div class="panel">
-          <h2>Done! Share it</h2>
-          <p>Choose Instagram → Story from your Share sheet, or download and upload manually.</p>
+          <h2>Share this to Instagram</h2>
+          <p>We will first save a dedicated story video to your device, then open Instagram Stories.</p>
           <div class="row">
-            <button class="btn" id="shareBtn">Share…</button>
-            <button class="btn" id="igBtn">IG Story</button>
-            <button class="btn secondary" id="downloadBtn">Download video</button>
+            <button class="btn" id="shareToIGFlowBtn">Save video & Open Instagram</button>
+            <button class="btn secondary" id="downloadBtn">Download current slide</button>
           </div>
         </div>
         <button class="btn" id="replayBtn2" style="justify-self:center; margin-top:6px;">Replay</button>
@@ -122,8 +121,7 @@
     const tapLeft = document.getElementById('tapLeft');
     const tapRight = document.getElementById('tapRight');
     const shareOverlay = document.getElementById('share');
-    const shareBtn = document.getElementById('shareBtn');
-    const igBtn = document.getElementById('igBtn');
+    const shareToIGFlowBtn = document.getElementById('shareToIGFlowBtn');
     const downloadBtn = document.getElementById('downloadBtn');
     const replayBtn = document.getElementById('replayBtn');
     const replayBtn2 = document.getElementById('replayBtn2');
@@ -133,7 +131,7 @@
     const igTopBtn = document.getElementById('igTopBtn');
     const tapHint = document.getElementById('tapHint');
 
-    // Capability check: hide IG Story buttons if file sharing isn't supported
+    // Capability check: hide IG Story button if file sharing isn't supported
     const supportsFileShare = (() => {
       try {
         if (!navigator.canShare) return false;
@@ -142,10 +140,12 @@
       } catch (_) { return false; }
     })();
 
-    if (!supportsFileShare) {
-      try { igTopBtn.style.display = 'none'; } catch(_) {}
-      try { igBtn.style.display = 'none'; } catch(_) {}
+    if (!supportsFileShare && igTopBtn) {
+      igTopBtn.style.display = 'none';
     }
+
+    // Placeholder asset for Instagram story flow (replace with your final IG Story mp4)
+    const PLACEHOLDER_ASSET_URL = 'https://example.com/path/to/your-final-instagram-story.mp4';
 
     const SPOTIFY_LEAD_S = 2.0;
     let spotifyShown = false;
@@ -180,9 +180,17 @@
       current = clamp(i, 0, slides.length - 1);
       shareOverlay.classList.remove('visible');
       replayBtn.style.display = 'none';
-      spotifyPanel.classList.remove('visible');
-      spotifyPanel.style.display = 'none';
-      spotifyShown = false;
+
+      // Keep Spotify visible after it appears on the last slide
+      if (current !== slides.length - 1) {
+        spotifyPanel.classList.remove('visible');
+        spotifyPanel.style.display = 'none';
+        spotifyShown = false;
+      } else if (spotifyShown) {
+        // If it already appeared earlier, keep it shown
+        spotifyPanel.style.display = 'block';
+        spotifyPanel.classList.add('visible');
+      }
 
       for (let j = 0; j < slides.length; j++) {
         fills[j].style.width = j < current ? '100%' : '0%';
@@ -238,6 +246,11 @@
       fills.forEach(f => f.style.width = '100%');
       replayBtn.style.display = 'inline-flex';
       shareOverlay.classList.add('visible');
+      // Keep Spotify pinned and visible above the share overlay if it has appeared
+      if (spotifyShown) {
+        spotifyPanel.style.display = 'block';
+        spotifyPanel.classList.add('visible');
+      }
       try { player.pause(); } catch (e) {}
       setPPState(true);
     }
@@ -292,6 +305,7 @@
       current = 0;
       shareOverlay.classList.remove('visible');
       replayBtn.style.display = 'none';
+      // Reset Spotify on replay so it appears again naturally at the end
       spotifyPanel.classList.remove('visible');
       spotifyPanel.style.display = 'none';
       spotifyShown = false;
@@ -355,7 +369,49 @@
       a.remove();
     }
 
-    // ---- Generic Web Share button (download → share file) ----
+    // ---- Share overlay flow: download placeholder asset → save → (optionally) share → open Instagram ----
+    async function shareOverlayFlow() {
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 15000);
+        const resp = await fetch(PLACEHOLDER_ASSET_URL, { method: 'GET', mode: 'cors', credentials: 'omit', referrerPolicy: 'no-referrer', signal: ctrl.signal });
+        if (!resp.ok) throw new Error('http-' + resp.status);
+        const blob = await resp.blob();
+        clearTimeout(timer);
+        const file = new File([blob], 'yss-instagram-story.mp4', { type: blob.type || 'video/mp4' });
+
+        // 1) Save to device (best-effort)
+        const url = URL.createObjectURL(file);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'yss-instagram-story.mp4';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+
+        // 2) Try to share directly as a file too (some users prefer straight to IG)
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try { await navigator.share({ files: [file] }); } catch (_) { /* user canceled or unsupported target */ }
+        }
+
+        // 3) Attempt to open Instagram Stories camera
+        openInstagramStories();
+      } catch (err) {
+        alert('We could not save the Instagram Story asset automatically. Please check your connection and try again.');
+      }
+    }
+
+    function openInstagramStories() {
+      const iosDeepLink = 'instagram://story-camera';
+      const webFallback = 'https://www.instagram.com/stories/create/';
+      // Try deep-linking to the app
+      try { window.location.href = iosDeepLink; } catch (_) { window.location.href = webFallback; }
+      // As a backup, if deep link fails silently, go to web after a short delay
+      setTimeout(() => { if (!document.hidden) window.location.href = webFallback; }, 1200);
+    }
+
+    // ---- Generic top-bar share: download current slide → share file (or download fallback) ----
     async function shareCurrentSlide() {
       try {
         const file = await getCurrentFile();
@@ -372,25 +428,11 @@
       }
     }
 
-    // ---- "Share to Instagram Story" (download → share file) ----
-    async function shareToInstagramStory() {
-      try {
-        const file = await getCurrentFile();
-        const ok = await shareViaFiles(file);
-        if (!ok) throw new Error('files-share-not-supported');
-      } catch (err) {
-        const url = slides[current];
-        const fn = (url.split('/').pop() || 'clip.mp4');
-        triggerDownload(url, fn);
-        alert("Couldn't share directly from the browser. The video has been downloaded — open Instagram and upload it to your Story.");
-      }
-    }
-
+    // Bind UI events
+    shareToIGFlowBtn.addEventListener('click', shareOverlayFlow);
     shareTopBtn.addEventListener('click', shareCurrentSlide);
-    shareBtn.addEventListener('click', shareCurrentSlide);
-    downloadBtn.addEventListener('click', () => triggerDownload(slides[current], (slides[current].split('/').pop() || 'clip.mp4')));
-    igTopBtn.addEventListener('click', shareToInstagramStory);
-    igBtn.addEventListener('click', shareToInstagramStory);
+    downloadBtn.addEventListener('click', () => triggerDownload(slides[current], (slides[current].split('/') .pop() || 'clip.mp4')));
+    if (igTopBtn) igTopBtn.addEventListener('click', shareCurrentSlide);
 
     // --- Autoplay on visit (WITH sound). If blocked, show hint & wait for first tap. ---
     player.autoplay = true;
@@ -402,11 +444,13 @@
       _autoplayTry.catch(() => { hasStarted = false; if (tapHint) tapHint.classList.add('visible'); });
     }
 
-    // --- tiny smoke tests (non-fatal) ---
+    // --- smoke tests (console-only) ---
     try {
       console.assert(typeof getCurrentFile === 'function', 'getCurrentFile should be a function');
       console.assert(Array.isArray(slides) && slides.length > 0, 'slides should be a non-empty array');
       console.assert(document.getElementById('player') instanceof HTMLVideoElement, '#player should exist');
+      console.assert(typeof shareOverlayFlow === 'function', 'shareOverlayFlow should be defined');
+      console.assert(typeof shareCurrentSlide === 'function', 'shareCurrentSlide should be defined');
     } catch(_) {}
   })();
   </script>
