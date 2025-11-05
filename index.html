@@ -106,7 +106,7 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
     <!-- Progress bars -->
     <div class="progress" id="progress"></div>
 
-    <!-- Top UI: logo/title + (no share button) + Replay -->
+    <!-- Top UI: logo/title + Replay (NO share button) -->
     <div class="top-ui">
       <div style="display:flex; align-items:center; gap:8px; opacity:.9">
         <div style="width:28px;height:28px;border-radius:999px;background:#fff"></div>
@@ -180,7 +180,7 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
   const spotifyPanel = document.getElementById('spotifyPanel');
   const spotifyIframe = spotifyPanel.querySelector('iframe');
 
-  // Spotify appears 1.2s earlier than before (2.8s -> 4.0s before end)
+  // Spotify appears 4.0s before the end (was 2.8s)
   const SPOTIFY_LEAD_S = 4.0;
 
   let spotifyShown = false;
@@ -248,20 +248,18 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
   function prev() {
     if (player.currentTime > 0.25) player.currentTime = 0;
     else if (current > 0) loadSlide(current - 1);
-    }
+  }
 
   function tick() {
-    // Update progress bars
     if (player.duration > 0 && isFinite(player.duration)) {
       if (!player.paused) {
         const pct = (player.currentTime / player.duration) * 100;
         fills[current].style.width = clamp(pct, 0, 100) + '%';
       }
-      // Reveal Spotify during the last part of the final slide
+      // Reveal Spotify during the end of the final slide
       if (!spotifyShown && current === slides.length - 1) {
         const remaining = player.duration - player.currentTime;
         if (remaining <= SPOTIFY_LEAD_S) {
-          // lazy-load src to avoid unnecessary early requests
           const src = spotifyIframe.getAttribute('data-src');
           if (src && !spotifyIframe.src) spotifyIframe.src = src;
           spotifyPanel.style.display = 'block';
@@ -274,7 +272,6 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
   }
 
   function showShare() {
-    // Complete all bars
     fills.forEach(f => f.style.width = '100%');
     replayBtn.style.display = 'inline-flex';
     shareOverlay.classList.add('visible');
@@ -286,9 +283,8 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
   tapLeft.addEventListener('click', prev);
   player.addEventListener('ended', next);
 
-  // Press & hold to pause / resume (kept)
+  // Press & hold to pause / resume
   const pressStart = (e) => {
-    // Ignore press-to-pause if gate or UI buttons are tapped
     if (getComputedStyle(gate).display !== 'none') return;
     if (e && (e.target.closest('.gate') || e.target.closest('.progress') || e.target.closest('button'))) return;
     isPressing = true;
@@ -305,42 +301,32 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
   stage.addEventListener('pointerleave', pressEnd);
 
   // Swipe navigation (touch)
-  stage.addEventListener('touchstart', (e) => {
-    touchStartX = e.changedTouches[0].clientX;
-  }, { passive: true });
+  stage.addEventListener('touchstart', (e) => { touchStartX = e.changedTouches[0].clientX; }, { passive: true });
   stage.addEventListener('touchend', (e) => {
     if (touchStartX == null) return;
     const dx = e.changedTouches[0].clientX - touchStartX;
     touchStartX = null;
-    const THRESH = 40; // px
+    const THRESH = 40;
     if (Math.abs(dx) > THRESH) { if (dx < 0) next(); else prev(); }
   });
 
-  // Visibility handling to pause when tab goes background
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { try { player.pause(); } catch (e) {} }
-  });
+  // Pause when tab goes background
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { try { player.pause(); } catch (e) {} } });
 
-  // Gate controls (start with sound ON after a tap)
+  // Gate controls
   function startPlayback() {
     player.muted = false;
     gate.style.display = 'none';
     loadSlide(current, { autoplay: true });
   }
-  gate.addEventListener('click', (e) => {
-    if (e.target.closest('#startBtn')) startPlayback();
-  });
-  startBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    startPlayback();
-  });
+  gate.addEventListener('click', (e) => { if (e.target.closest('#startBtn')) startPlayback(); });
+  startBtn.addEventListener('click', (e) => { e.stopPropagation(); startPlayback(); });
 
   // Replay
   function replay() {
     current = 0;
     shareOverlay.classList.remove('visible');
     replayBtn.style.display = 'none';
-    // Reset Spotify
     spotifyPanel.classList.remove('visible');
     spotifyPanel.style.display = 'none';
     spotifyShown = false;
@@ -349,7 +335,7 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
   replayBtn.addEventListener('click', replay);
   replayBtn2.addEventListener('click', replay);
 
-  // Download helper
+  // Download helpers
   function triggerDownload(url, filename) {
     const a = document.createElement('a');
     a.href = url;
@@ -359,20 +345,20 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
     a.remove();
   }
 
-  // Share overlay: always download the provided final file instead of sharing current slide
+  // Share overlay download: always your final file
   async function shareVideo() {
     const fname = SHARE_FILE_URL.split('/').pop() || 'YSSLoyalty-Rewind.mp4';
     triggerDownload(SHARE_FILE_URL, fname);
   }
-
-  // No top-right share button anymore
   shareBtn.addEventListener('click', shareVideo);
+
+  // Download current slide
   downloadBtn.addEventListener('click', () => {
     const filename = slides[current].split('/').pop() || 'clip.mp4';
     triggerDownload(slides[current], filename);
   });
 
-  // Initial state: load first slide but keep gate visible; don't autoplay until tap
+  // Initial state
   loadSlide(0, { autoplay: false });
 })();
 </script>
