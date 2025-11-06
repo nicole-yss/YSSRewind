@@ -180,6 +180,8 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
 
   // Spotify appears before the end of the last slide
   const SPOTIFY_LEAD_S = 7.3;
+  // Wait this long after starting the download before opening Instagram (ms)
+  const DOWNLOAD_THEN_IG_DELAY_MS = 1200;
 
   let spotifyShown = false;
   let current = 0;
@@ -358,14 +360,33 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
   // Trigger a real device download without navigating away (works better on iOS)
   function workerDownload(rawUrl, niceName = 'YSSLoyalty-Rewind.mp4') {
     const href = buildWorkerUrl(rawUrl, niceName);
-    // Reuse a hidden iframe to keep everything in one user gesture
-    let iframe = document.getElementById('dl_iframe');
-    if (!iframe) {
-      iframe = document.createElement('iframe');
-      iframe.id = 'dl_iframe';
-      iframe.style.display = 'none';
-      document.body.appendChild(iframe);
-    }
+    return new Promise((resolve) => {
+      // Reuse a hidden iframe to keep everything in a single user gesture
+      let iframe = document.getElementById('dl_iframe');
+      if (!iframe) {
+        iframe = document.createElement('iframe');
+        iframe.id = 'dl_iframe';
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
+      }
+
+      // Resolve either on iframe load (headers received) or after a safety timeout
+      const safety = setTimeout(() => resolve(), DOWNLOAD_THEN_IG_DELAY_MS);
+      const onload = () => { try { iframe.removeEventListener('load', onload); } catch(_){}; clearTimeout(safety); resolve(); };
+      try { iframe.addEventListener('load', onload); } catch(_) {}
+
+      try {
+        iframe.src = href; // Triggers download via Content-Disposition: attachment
+      } catch (_) {
+        // Fallback: open in a new tab if iframe setting fails (cannot detect load)
+        const a = document.createElement('a');
+        a.href = href; a.target = '_blank'; a.rel = 'noopener';
+        document.body.appendChild(a); a.click(); a.remove();
+        // Resolve after the safety delay
+        setTimeout(() => resolve(), DOWNLOAD_THEN_IG_DELAY_MS);
+      }
+    });
+  }
     // Point the iframe at the worker URL (Content-Disposition: attachment)
     try { iframe.src = href; } catch (_) {
       // Fallback: open in a new tab if iframe setting fails
@@ -378,9 +399,9 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
   // --- Unified Share Flow ---
   async function shareFlow() {
     const src = player.currentSrc || slides[current];
-    // 1) Kick off download via hidden iframe (stays on page)
-    workerDownload(src, 'YSSLoyalty-Rewind.mp4');
-    // 2) Immediately open Instagram in same user gesture (better success rate)
+    // Start the download FIRST and wait briefly
+    await workerDownload(src, 'YSSLoyalty-Rewind.mp4');
+    // THEN open Instagram Stories
     openInstagramStories();
   }
 
