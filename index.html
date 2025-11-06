@@ -355,23 +355,32 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
     return u.toString();
   }
 
-  // Trigger a real device download by opening the Worker URL in a new tab/window
+  // Trigger a real device download without navigating away (works better on iOS)
   function workerDownload(rawUrl, niceName = 'YSSLoyalty-Rewind.mp4') {
     const href = buildWorkerUrl(rawUrl, niceName);
-    const a = document.createElement('a');
-    a.href = href;
-    a.target = '_blank'; // keep current tab to open IG
-    a.rel = 'noopener';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    // Reuse a hidden iframe to keep everything in one user gesture
+    let iframe = document.getElementById('dl_iframe');
+    if (!iframe) {
+      iframe = document.createElement('iframe');
+      iframe.id = 'dl_iframe';
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
+    }
+    // Point the iframe at the worker URL (Content-Disposition: attachment)
+    try { iframe.src = href; } catch (_) {
+      // Fallback: open in a new tab if iframe setting fails
+      const a = document.createElement('a');
+      a.href = href; a.target = '_blank'; a.rel = 'noopener';
+      document.body.appendChild(a); a.click(); a.remove();
+    }
   }
 
   // --- Unified Share Flow ---
   async function shareFlow() {
     const src = player.currentSrc || slides[current];
-    // Force-download via Worker and open Instagram within same gesture
+    // 1) Kick off download via hidden iframe (stays on page)
     workerDownload(src, 'YSSLoyalty-Rewind.mp4');
+    // 2) Immediately open Instagram in same user gesture (better success rate)
     openInstagramStories();
   }
 
@@ -388,7 +397,7 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
     const tests = [];
     function test(name, fn) {
       try { fn(); tests.push([name, true]); }
-      catch (e) { tests.push([name, false, e.message]); }
+      catch (e) { tests.push([name, false, e && e.message]); }
     }
 
     // Test 1: slides length
@@ -409,7 +418,15 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
       if (!shareBtn) throw new Error('shareBtn not found');
     });
 
-    // Report
+    // Test 4: worker URL base is correct and filename is present
+    test('worker URL base & filename', () => {
+      const sample = 'https://example.com/x.mp4';
+      const built = new URL(buildWorkerUrl(sample));
+      if (built.origin !== new URL(FORCE_DOWNLOAD_BASE).origin) throw new Error('Wrong worker base');
+      const fname = built.searchParams.get('filename');
+      if (!fname || !fname.endsWith('.mp4')) throw new Error('filename param missing');
+    });
+
     const passed = tests.filter(t => t[1]).length;
     const failed = tests.length - passed;
     console.log(`Self-tests: ${passed} passed, ${failed} failed`, tests);
