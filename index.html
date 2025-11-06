@@ -470,6 +470,9 @@ function shareFlow() {
     // Test 7: button label reflects Share/Save
     test('shareBtn label updated', function(){ if (!/Share \/ Save to Photos/i.test(shareBtn.textContent)) throw new Error('Button label not updated'); });
 
+    // Test 8: Preloader basic API exists
+    test('Preloader API exists', function(){ if (!Preloader || typeof Preloader.warm !== 'function' || typeof Preloader.urlFor !== 'function') throw new Error('Preloader missing'); });
+
     var passed = tests.filter(function(t){return t[1];}).length;
     var failed = tests.length - passed;
     console.log('Self-tests: ' + passed + ' passed, ' + failed + ' failed', tests);
