@@ -189,6 +189,46 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
   let isPressing = false;
   let touchStartX = null;
 
+  // -------------------------
+  // Aggressive video preloader (preload all clips)
+  // -------------------------
+  const Preloader = (function(){
+    var blobs = new Map();       // url -> { objectUrl, ts }
+    var inflight = new Map();    // url -> Promise
+
+    function fetchBlob(u){
+      if (inflight.has(u)) return inflight.get(u);
+      var p = fetch(u, { cache: 'force-cache', credentials: 'omit' })
+        .then(function(r){ if (!r.ok) throw new Error('HTTP '+r.status); return r.blob(); })
+        .then(function(b){
+          if (b.size === 0) throw new Error('Empty blob');
+          var obj = URL.createObjectURL(b);
+          blobs.set(u, { objectUrl: obj, ts: Date.now() });
+          return obj;
+        })
+        .catch(function(e){ console.warn('Preload failed for', u, e); throw e; })
+        .finally(function(){ inflight.delete(u); });
+      inflight.set(u, p);
+      return p;
+    }
+
+    function urlFor(u){
+      var entry = blobs.get(u);
+      return entry ? entry.objectUrl : u;
+    }
+
+    function warm(u){
+      return fetchBlob(u).catch(function(){ return null; });
+    }
+
+    function evictAll(){
+      blobs.forEach(function(rec){ try { URL.revokeObjectURL(rec.objectUrl); } catch(_){} });
+      blobs.clear();
+    }
+
+    return { warm: warm, urlFor: urlFor, evictAll: evictAll };
+  })();
+
   // Build progress bars
   const fills = [];
   for (let i = 0; i < slides.length; i++) {
@@ -222,7 +262,8 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
     }
 
     const url = slides[current];
-    player.src = url;
+    // Use preloaded blob URL if available for instant start
+    player.src = Preloader.urlFor(url);
     player.currentTime = 0;
     player.load();
 
@@ -424,6 +465,9 @@ function shareFlow() {
 
   // Initial state
   loadSlide(0, { autoplay: false });
+
+  // Aggressively preload ALL videos on first load
+  slides.forEach(function(u){ Preloader.warm(u); });
 
   // =============================
   // Minimal Self-Tests (console)
