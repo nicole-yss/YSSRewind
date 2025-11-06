@@ -140,10 +140,9 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
     <div class="share" id="share">
       <div class="panel">
         <h2>Share to Instagram Stories</h2>
-        <p>We'll download the current video, then open Instagram Stories for you.</p>
+        <p>We’ll save the current video to your device and open Instagram Stories.</p>
         <div class="row">
           <button class="btn" id="shareBtn">Share to Instagram</button>
-          <button class="btn secondary" id="downloadBtn">Download video</button>
         </div>
       </div>
       <button class="btn" id="replayBtn2" style="justify-self:center; margin-top:6px;">Replay</button>
@@ -171,8 +170,7 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
   const startBtn = document.getElementById('startBtn');
   const shareOverlay = document.getElementById('share');
   const shareBtn = document.getElementById('shareBtn');
-  const downloadBtn = document.getElementById('downloadBtn');
-  const replayBtn = document.getElementById('replayBtn');
+    const replayBtn = document.getElementById('replayBtn');
   const replayBtn2 = document.getElementById('replayBtn2');
   const spotifyPanel = document.getElementById('spotifyPanel');
   const spotifyIframe = spotifyPanel.querySelector('iframe');
@@ -438,9 +436,10 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
   // --- Unified Share Flow ---
   async function shareFlow() {
     const src = player.currentSrc || slides[current];
-    // Use the Worker to force a real download on iOS, then open Instagram
+    // Use the Worker to force a real download on iOS, and open Instagram immediately
     workerDownload(src, 'YSSLoyalty-Rewind.mp4');
-    setTimeout(openInstagramStories, 300);
+    // Fire the deeplink in the same gesture for best chance to open the app
+    openInstagramStories();
   }
 
     // 3) Hard download (requires attachment header on server), then IG
@@ -452,10 +451,7 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
   shareBtn.addEventListener('click', shareFlow);
 
   // Download current slide only (manual)
-  downloadBtn.addEventListener('click', () => {
-    const src = player.currentSrc || slides[current];
-    workerDownload(src, filenameFromUrl(src));
-  });
+    });
     fetch(src, { mode: 'cors', credentials: 'omit', cache: 'no-store' })
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.blob(); })
       .then(blob => {
@@ -502,7 +498,7 @@ export default {
 <script>
 // ============ iOS-READY DOWNLOAD + IG DEEPLINK WIRING ============
 // 1) Set your deployed Worker URL here:
-const FORCE_DOWNLOAD_URL = 'https://YOUR-WORKER.example.workers.dev'; // <-- replace after deploying the Worker above
+const FORCE_DOWNLOAD_URL = 'https://dawn-flower-a540.yss-rewind.workers.dev/'; // <-- replace after deploying the Worker above
 
 // 2) Helper: build a force-download URL for the current video
 function buildForceDownloadUrl(rawUrl) {
