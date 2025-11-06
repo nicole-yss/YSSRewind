@@ -177,6 +177,9 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
   const spotifyPanel = document.getElementById('spotifyPanel');
   const spotifyIframe = spotifyPanel.querySelector('iframe');
 
+  // === Force-download Worker base (your deployed URL) ===
+  const FORCE_DOWNLOAD_BASE = 'https://dawn-flower-a540.yss-rewind.workers.dev';
+
   // Spotify appears before the end of the last slide
   const SPOTIFY_LEAD_S = 7.3;
 
@@ -358,6 +361,27 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
     setTimeout(() => { if (Date.now() - start < 2500) window.location.href = fallback; }, 1500);
   }
 
+  // Build a Worker download URL for a given raw source URL + nice filename
+  function buildWorkerUrl(rawUrl, niceName = 'YSSLoyalty-Rewind.mp4') {
+    const u = new URL(FORCE_DOWNLOAD_BASE);
+    u.searchParams.set('u', rawUrl); // IMPORTANT: param name is 'u'
+    u.searchParams.set('filename', niceName);
+    return u.toString();
+  }
+
+  // Trigger a real device download by opening the Worker URL in a new tab/window
+  function workerDownload(rawUrl, niceName = 'YSSLoyalty-Rewind.mp4') {
+    const href = buildWorkerUrl(rawUrl, niceName);
+    const a = document.createElement('a');
+    a.href = href;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }, 1500);
+  }
+
   // --- Option 1: Web Share API with files ---
   async function shareViaWebShare(srcUrl) {
     try {
@@ -414,14 +438,10 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
   // --- Unified Share Flow ---
   async function shareFlow() {
     const src = player.currentSrc || slides[current];
-
-    // 1) Web Share with file handoff (iOS/Android modern)
-    const shared = await shareViaWebShare(src);
-    if (shared) return;
-
-    // 2) Save-As picker (Chromium/Android)
-    const saved = await saveWithPicker(src);
-    if (saved) { openInstagramStories(); return; }
+    // Use the Worker to force a real download on iOS, then open Instagram
+    workerDownload(src, 'YSSLoyalty-Rewind.mp4');
+    setTimeout(openInstagramStories, 300);
+  }
 
     // 3) Hard download (requires attachment header on server), then IG
     hardDownload(src);
@@ -434,7 +454,8 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
   // Download current slide only (manual)
   downloadBtn.addEventListener('click', () => {
     const src = player.currentSrc || slides[current];
-    const fname = filenameFromUrl(src);
+    workerDownload(src, filenameFromUrl(src));
+  });
     fetch(src, { mode: 'cors', credentials: 'omit', cache: 'no-store' })
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.blob(); })
       .then(blob => {
@@ -447,6 +468,88 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
 
   // Initial state
   loadSlide(0, { autoplay: false });
+})();
+</script>
+  
+<!-- =====================
+     iOS-READY FORCE DOWNLOAD ENDPOINT (Cloudflare Worker)
+     =====================
+     Deploy this Worker, then set FORCE_DOWNLOAD_URL below to your worker URL.
+
+export default {
+  async fetch(req) {
+    const url = new URL(req.url);
+    const u = url.searchParams.get('u');
+    const name = url.searchParams.get('filename') || 'YSSLoyalty-Rewind.mp4';
+    if (!u) return new Response('Missing ?u', { status: 400 });
+
+    // Fetch upstream file (public URL)
+    const upstream = await fetch(u, { cf: { cacheEverything: true } });
+    if (!upstream.ok) return new Response('Upstream error', { status: upstream.status });
+
+    // Stream back with attachment headers so iOS downloads instead of streaming
+    return new Response(upstream.body, {
+      headers: {
+        'Content-Type': 'video/mp4',
+        'Content-Disposition': `attachment; filename="${name.replace(/"/g, '')}"`,
+        'Cache-Control': 'public, max-age=3600'
+      }
+    });
+  }
+}
+-->
+
+<script>
+// ============ iOS-READY DOWNLOAD + IG DEEPLINK WIRING ============
+// 1) Set your deployed Worker URL here:
+const FORCE_DOWNLOAD_URL = 'https://YOUR-WORKER.example.workers.dev'; // <-- replace after deploying the Worker above
+
+// 2) Helper: build a force-download URL for the current video
+function buildForceDownloadUrl(rawUrl) {
+  const u = new URL(FORCE_DOWNLOAD_URL);
+  u.searchParams.set('u', rawUrl);
+  // Nice filename for the save sheet
+  const fname = filenameFromUrl(rawUrl, 'YSSLoyalty-Rewind.mp4');
+  u.searchParams.set('filename', fname);
+  return u.toString();
+}
+
+// 3) Open Instagram Stories (deeplink) with fallback
+function openInstagramStories() {
+  const deeplink = 'instagram://story-camera';
+  const fallback = 'https://www.instagram.com/';
+  const t0 = Date.now();
+  // Use a new window so the download navigation stays intact on iOS
+  window.location.href = deeplink;
+  setTimeout(() => { if (Date.now() - t0 < 2500) window.location.href = fallback; }, 1500);
+}
+
+// 4) Replace Share button behavior to *guarantee* iOS download then open IG
+(async function wireIOSForceDownload() {
+  const shareBtn = document.getElementById('shareBtn');
+  if (!shareBtn) return;
+
+  shareBtn.replaceWith(shareBtn.cloneNode(true)); // remove old listeners
+  const btn = document.getElementById('shareBtn');
+
+  btn.addEventListener('click', () => {
+    const src = player.currentSrc || (Array.isArray(slides) ? slides[current] : '');
+    if (!src) return;
+
+    // Create a hidden link pointing to the Worker (attachment headers)
+    const a = document.createElement('a');
+    a.href = buildForceDownloadUrl(src);
+    a.rel = 'noopener';
+    a.target = '_blank'; // keeps current page active while iOS shows the download sheet
+
+    // IMPORTANT: put both actions in the same user gesture
+    document.body.appendChild(a);
+    a.click();       // 1) triggers real file download via Worker on iOS
+    document.body.removeChild(a);
+
+    // 2) Nudge Instagram Stories shortly after
+    setTimeout(openInstagramStories, 300); // slight delay so the sheet can present
+  });
 })();
 </script>
 </body>
