@@ -158,7 +158,7 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
     "https://storage.googleapis.com/yss_media/NURSE%20JEI/%232.mp4",
     "https://storage.googleapis.com/yss_media/NURSE%20JEI/%233.mp4",
     "https://storage.googleapis.com/yss_media/NURSE%20JEI/%234.mp4",
-    "https://storage.googleapis.com/yss_media/NURSE%20JEI/%235.mp4",
+    "https://storage.googleapis.com/yss_media/NURSE%20JEI/%235.mp4"
   ];
 
   const stage = document.getElementById('stage');
@@ -387,14 +387,6 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
       }
     });
   }
-    // Point the iframe at the worker URL (Content-Disposition: attachment)
-    try { iframe.src = href; } catch (_) {
-      // Fallback: open in a new tab if iframe setting fails
-      const a = document.createElement('a');
-      a.href = href; a.target = '_blank'; a.rel = 'noopener';
-      document.body.appendChild(a); a.click(); a.remove();
-    }
-  }
 
   // --- Unified Share Flow ---
   async function shareFlow() {
@@ -446,6 +438,18 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
       if (built.origin !== new URL(FORCE_DOWNLOAD_BASE).origin) throw new Error('Wrong worker base');
       const fname = built.searchParams.get('filename');
       if (!fname || !fname.endsWith('.mp4')) throw new Error('filename param missing');
+    });
+
+    // Test 5: constants sanity
+    test('DOWNLOAD_THEN_IG_DELAY_MS is a positive number', () => {
+      if (!(Number.isFinite(DOWNLOAD_THEN_IG_DELAY_MS) && DOWNLOAD_THEN_IG_DELAY_MS > 0)) {
+        throw new Error('Invalid DOWNLOAD_THEN_IG_DELAY_MS');
+      }
+    });
+
+    // Test 6: shareFlow is a function
+    test('shareFlow is function', () => {
+      if (typeof shareFlow !== 'function') throw new Error('shareFlow missing');
     });
 
     const passed = tests.filter(t => t[1]).length;
