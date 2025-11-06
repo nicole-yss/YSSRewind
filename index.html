@@ -332,7 +332,7 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
   replayBtn.addEventListener('click', replay);
   replayBtn2.addEventListener('click', replay);
 
-  // --- Helpers ---
+  // --- Utilities ---
   function triggerDownload(url, filename) {
     const a = document.createElement('a');
     a.href = url;
@@ -351,58 +351,90 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
   }
 
   function openInstagramStories() {
-    // Try Instagram Stories deeplink; fallback to Instagram web if scheme is blocked
     const deeplink = 'instagram://story-camera';
     const fallback = 'https://www.instagram.com/';
     const start = Date.now();
-
-    // Open within the user gesture for better success
     window.location.href = deeplink;
-
-    // Fallback after a short delay if the app didn't open
-    setTimeout(() => {
-      if (Date.now() - start < 2500) {
-        window.location.href = fallback;
-      }
-    }, 1500);
+    setTimeout(() => { if (Date.now() - start < 2500) window.location.href = fallback; }, 1500);
   }
 
-  // --- New Share Flow ---
-  async function shareToInstagram() {
-    const src = player.currentSrc || slides[current];
-    const fname = filenameFromUrl(src);
-
+  // --- Option 1: Web Share API with files ---
+  async function shareViaWebShare(srcUrl) {
     try {
-      // Fetch the file bytes (not just navigating to the CDN)
-      const resp = await fetch(src, { mode: 'cors', credentials: 'omit', cache: 'no-store' });
+      const resp = await fetch(srcUrl, { cache: 'no-store' });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const blob = await resp.blob();
+      const file = new File([blob], filenameFromUrl(srcUrl, 'YSSLoyalty-Rewind.mp4'), { type: 'video/mp4' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'YSSLoyalty Rewind' });
+        return true;
+      }
+    } catch (e) {
+      console.warn('Web Share with files failed:', e);
+    }
+    return false;
+  }
 
-      // Create an object URL and trigger a real download
-      const objectUrl = URL.createObjectURL(blob);
-      triggerDownload(objectUrl, fname);
-
-      // Revoke later to keep memory tidy
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
-    } catch (err) {
-      // If CORS forbids reading bytes, fall back to a direct download attempt
-      console.warn('Blob download failed, falling back to direct URL:', err);
-      triggerDownload(src, fname);
-    } finally {
-      // Then open Instagram Stories deeplink
-      openInstagramStories();
+  // --- Option 2: File System Access API (Chromium) ---
+  async function saveWithPicker(srcUrl) {
+    if (!('showSaveFilePicker' in window)) return false;
+    try {
+      const resp = await fetch(srcUrl, { cache: 'no-store' });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const blob = await resp.blob();
+      const handle = await window.showSaveFilePicker({
+        suggestedName: filenameFromUrl(srcUrl, 'YSSLoyalty-Rewind.mp4'),
+        types: [{ description: 'MP4 video', accept: { 'video/mp4': ['.mp4'] } }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return true;
+    } catch (e) {
+      console.warn('Save with picker failed:', e);
+      return false;
     }
   }
 
-  // Wire the buttons
-  shareBtn.addEventListener('click', shareToInstagram);
+  // --- Option 3: Hard download via attachment header ---
+  function hardDownload(url) {
+    // Assumes server/object has Content-Disposition: attachment
+    const fname = filenameFromUrl(url, 'YSSLoyalty-Rewind.mp4');
+    // Try blob first (nicer UX); if CORS blocks, fallback to link click.
+    fetch(url, { mode: 'cors', credentials: 'omit', cache: 'no-store' })
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.blob(); })
+      .then(blob => {
+        const objectUrl = URL.createObjectURL(blob);
+        triggerDownload(objectUrl, fname);
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+      })
+      .catch(() => triggerDownload(url, fname));
+  }
 
-  // Download current slide only
+  // --- Unified Share Flow ---
+  async function shareFlow() {
+    const src = player.currentSrc || slides[current];
+
+    // 1) Web Share with file handoff (iOS/Android modern)
+    const shared = await shareViaWebShare(src);
+    if (shared) return;
+
+    // 2) Save-As picker (Chromium/Android)
+    const saved = await saveWithPicker(src);
+    if (saved) { openInstagramStories(); return; }
+
+    // 3) Hard download (requires attachment header on server), then IG
+    hardDownload(src);
+    openInstagramStories();
+  }
+
+  // Wire the buttons
+  shareBtn.addEventListener('click', shareFlow);
+
+  // Download current slide only (manual)
   downloadBtn.addEventListener('click', () => {
     const src = player.currentSrc || slides[current];
     const fname = filenameFromUrl(src);
-
-    // Try blob download first
     fetch(src, { mode: 'cors', credentials: 'omit', cache: 'no-store' })
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.blob(); })
       .then(blob => {
