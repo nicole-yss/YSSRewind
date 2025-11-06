@@ -136,13 +136,13 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
       <button class="play-text-btn" id="startBtn" aria-label="Play">PLAY</button>
     </div>
 
-    <!-- Share overlay shown after last video finishes -->
+    <!-- Share overlay (kept) -->
     <div class="share" id="share">
       <div class="panel">
-        <h2>Done! Share it</h2>
-        <p>Choose Instagram → Story from your Share sheet, or download and upload manually.</p>
+        <h2>Share to Instagram Stories</h2>
+        <p>We'll download the current video, then open Instagram Stories for you.</p>
         <div class="row">
-          <button class="btn" id="shareBtn">Share…</button>
+          <button class="btn" id="shareBtn">Share to Instagram</button>
           <button class="btn secondary" id="downloadBtn">Download video</button>
         </div>
       </div>
@@ -162,9 +162,6 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
     "https://storage.googleapis.com/yss_media/NURSE%20JEI/%235.mp4",
   ];
 
-  // Replace with your final compiled/story video URL when ready
-  const SHARE_FILE_URL = "https://example.com/YSSLoyalty-Rewind-FINAL.mp4";
-
   const stage = document.getElementById('stage');
   const progressRoot = document.getElementById('progress');
   const player = document.getElementById('player');
@@ -180,7 +177,7 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
   const spotifyPanel = document.getElementById('spotifyPanel');
   const spotifyIframe = spotifyPanel.querySelector('iframe');
 
-  // Spotify appears 4.0s before the end (was 2.8s)
+  // Spotify appears before the end of the last slide
   const SPOTIFY_LEAD_S = 7.3;
 
   let spotifyShown = false;
@@ -335,7 +332,7 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
   replayBtn.addEventListener('click', replay);
   replayBtn2.addEventListener('click', replay);
 
-  // Download helpers
+  // --- Helpers ---
   function triggerDownload(url, filename) {
     const a = document.createElement('a');
     a.href = url;
@@ -345,17 +342,75 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
     a.remove();
   }
 
-  // Share overlay download: always your final file
-  async function shareVideo() {
-    const fname = SHARE_FILE_URL.split('/').pop() || 'YSSLoyalty-Rewind.mp4';
-    triggerDownload(SHARE_FILE_URL, fname);
+  function filenameFromUrl(u, fallback = 'video.mp4') {
+    try {
+      const clean = u.split('?')[0];
+      const name = decodeURIComponent(clean.substring(clean.lastIndexOf('/') + 1));
+      return name || fallback;
+    } catch (_) { return fallback; }
   }
-  shareBtn.addEventListener('click', shareVideo);
 
-  // Download current slide
+  function openInstagramStories() {
+    // Try Instagram Stories deeplink; fallback to Instagram web if scheme is blocked
+    const deeplink = 'instagram://story-camera';
+    const fallback = 'https://www.instagram.com/';
+    const start = Date.now();
+
+    // Open within the user gesture for better success
+    window.location.href = deeplink;
+
+    // Fallback after a short delay if the app didn't open
+    setTimeout(() => {
+      if (Date.now() - start < 2500) {
+        window.location.href = fallback;
+      }
+    }, 1500);
+  }
+
+  // --- New Share Flow ---
+  async function shareToInstagram() {
+    const src = player.currentSrc || slides[current];
+    const fname = filenameFromUrl(src);
+
+    try {
+      // Fetch the file bytes (not just navigating to the CDN)
+      const resp = await fetch(src, { mode: 'cors', credentials: 'omit', cache: 'no-store' });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const blob = await resp.blob();
+
+      // Create an object URL and trigger a real download
+      const objectUrl = URL.createObjectURL(blob);
+      triggerDownload(objectUrl, fname);
+
+      // Revoke later to keep memory tidy
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (err) {
+      // If CORS forbids reading bytes, fall back to a direct download attempt
+      console.warn('Blob download failed, falling back to direct URL:', err);
+      triggerDownload(src, fname);
+    } finally {
+      // Then open Instagram Stories deeplink
+      openInstagramStories();
+    }
+  }
+
+  // Wire the buttons
+  shareBtn.addEventListener('click', shareToInstagram);
+
+  // Download current slide only
   downloadBtn.addEventListener('click', () => {
-    const filename = slides[current].split('/').pop() || 'clip.mp4';
-    triggerDownload(slides[current], filename);
+    const src = player.currentSrc || slides[current];
+    const fname = filenameFromUrl(src);
+
+    // Try blob download first
+    fetch(src, { mode: 'cors', credentials: 'omit', cache: 'no-store' })
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.blob(); })
+      .then(blob => {
+        const objectUrl = URL.createObjectURL(blob);
+        triggerDownload(objectUrl, fname);
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+      })
+      .catch(() => triggerDownload(src, fname));
   });
 
   // Initial state
