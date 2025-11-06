@@ -170,7 +170,7 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
   const startBtn = document.getElementById('startBtn');
   const shareOverlay = document.getElementById('share');
   const shareBtn = document.getElementById('shareBtn');
-    const replayBtn = document.getElementById('replayBtn');
+  const replayBtn = document.getElementById('replayBtn');
   const replayBtn2 = document.getElementById('replayBtn2');
   const spotifyPanel = document.getElementById('spotifyPanel');
   const spotifyIframe = spotifyPanel.querySelector('iframe');
@@ -189,7 +189,6 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
 
   // Build progress bars
   const fills = [];
-  const tracks = [];
   for (let i = 0; i < slides.length; i++) {
     const track = document.createElement('div');
     track.className = 'track';
@@ -200,7 +199,6 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
     track.appendChild(fill);
     progressRoot.appendChild(track);
     fills.push(fill);
-    tracks.push(track);
     track.addEventListener('click', () => loadSlide(i));
   }
 
@@ -218,8 +216,7 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
 
     // Reset progress bars up to current
     for (let j = 0; j < slides.length; j++) {
-      if (j < current) fills[j].style.width = '100%';
-      else fills[j].style.width = '0%';
+      fills[j].style.width = j < current ? '100%' : '0%';
     }
 
     const url = slides[current];
@@ -334,15 +331,6 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
   replayBtn2.addEventListener('click', replay);
 
   // --- Utilities ---
-  function triggerDownload(url, filename) {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  }
-
   function filenameFromUrl(u, fallback = 'video.mp4') {
     try {
       const clean = u.split('?')[0];
@@ -362,7 +350,7 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
   // Build a Worker download URL for a given raw source URL + nice filename
   function buildWorkerUrl(rawUrl, niceName = 'YSSLoyalty-Rewind.mp4') {
     const u = new URL(FORCE_DOWNLOAD_BASE);
-    u.searchParams.set('u', rawUrl); // IMPORTANT: param name is 'u'
+    u.searchParams.set('u', rawUrl); // param name must be 'u'
     u.searchParams.set('filename', niceName);
     return u.toString();
   }
@@ -372,180 +360,60 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
     const href = buildWorkerUrl(rawUrl, niceName);
     const a = document.createElement('a');
     a.href = href;
-    a.target = '_blank';
+    a.target = '_blank'; // keep current tab to open IG
     a.rel = 'noopener';
     document.body.appendChild(a);
     a.click();
     a.remove();
-  }, 1500);
-  }
-
-  // --- Option 1: Web Share API with files ---
-  async function shareViaWebShare(srcUrl) {
-    try {
-      const resp = await fetch(srcUrl, { cache: 'no-store' });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const blob = await resp.blob();
-      const file = new File([blob], filenameFromUrl(srcUrl, 'YSSLoyalty-Rewind.mp4'), { type: 'video/mp4' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'YSSLoyalty Rewind' });
-        return true;
-      }
-    } catch (e) {
-      console.warn('Web Share with files failed:', e);
-    }
-    return false;
-  }
-
-  // --- Option 2: File System Access API (Chromium) ---
-  async function saveWithPicker(srcUrl) {
-    if (!('showSaveFilePicker' in window)) return false;
-    try {
-      const resp = await fetch(srcUrl, { cache: 'no-store' });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const blob = await resp.blob();
-      const handle = await window.showSaveFilePicker({
-        suggestedName: filenameFromUrl(srcUrl, 'YSSLoyalty-Rewind.mp4'),
-        types: [{ description: 'MP4 video', accept: { 'video/mp4': ['.mp4'] } }],
-      });
-      const writable = await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      return true;
-    } catch (e) {
-      console.warn('Save with picker failed:', e);
-      return false;
-    }
-  }
-
-  // --- Option 3: Hard download via attachment header ---
-  function hardDownload(url) {
-    // Assumes server/object has Content-Disposition: attachment
-    const fname = filenameFromUrl(url, 'YSSLoyalty-Rewind.mp4');
-    // Try blob first (nicer UX); if CORS blocks, fallback to link click.
-    fetch(url, { mode: 'cors', credentials: 'omit', cache: 'no-store' })
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.blob(); })
-      .then(blob => {
-        const objectUrl = URL.createObjectURL(blob);
-        triggerDownload(objectUrl, fname);
-        setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
-      })
-      .catch(() => triggerDownload(url, fname));
   }
 
   // --- Unified Share Flow ---
   async function shareFlow() {
     const src = player.currentSrc || slides[current];
-    // Use the Worker to force a real download on iOS, and open Instagram immediately
+    // Force-download via Worker and open Instagram within same gesture
     workerDownload(src, 'YSSLoyalty-Rewind.mp4');
-    // Fire the deeplink in the same gesture for best chance to open the app
     openInstagramStories();
   }
 
-    // 3) Hard download (requires attachment header on server), then IG
-    hardDownload(src);
-    openInstagramStories();
-  }
-
-  // Wire the buttons
+  // Wire the button
   shareBtn.addEventListener('click', shareFlow);
-
-  // Download current slide only (manual)
-    });
-    fetch(src, { mode: 'cors', credentials: 'omit', cache: 'no-store' })
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.blob(); })
-      .then(blob => {
-        const objectUrl = URL.createObjectURL(blob);
-        triggerDownload(objectUrl, fname);
-        setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
-      })
-      .catch(() => triggerDownload(src, fname));
-  });
 
   // Initial state
   loadSlide(0, { autoplay: false });
-})();
-</script>
-  
-<!-- =====================
-     iOS-READY FORCE DOWNLOAD ENDPOINT (Cloudflare Worker)
-     =====================
-     Deploy this Worker, then set FORCE_DOWNLOAD_URL below to your worker URL.
 
-export default {
-  async fetch(req) {
-    const url = new URL(req.url);
-    const u = url.searchParams.get('u');
-    const name = url.searchParams.get('filename') || 'YSSLoyalty-Rewind.mp4';
-    if (!u) return new Response('Missing ?u', { status: 400 });
+  // =============================
+  // Minimal Self-Tests (console)
+  // =============================
+  (function runSelfTests() {
+    const tests = [];
+    function test(name, fn) {
+      try { fn(); tests.push([name, true]); }
+      catch (e) { tests.push([name, false, e.message]); }
+    }
 
-    // Fetch upstream file (public URL)
-    const upstream = await fetch(u, { cf: { cacheEverything: true } });
-    if (!upstream.ok) return new Response('Upstream error', { status: upstream.status });
-
-    // Stream back with attachment headers so iOS downloads instead of streaming
-    return new Response(upstream.body, {
-      headers: {
-        'Content-Type': 'video/mp4',
-        'Content-Disposition': `attachment; filename="${name.replace(/"/g, '')}"`,
-        'Cache-Control': 'public, max-age=3600'
-      }
+    // Test 1: slides length
+    test('slides has 5 entries', () => {
+      if (slides.length !== 5) throw new Error('Expected 5 slides');
     });
-  }
-}
--->
 
-<script>
-// ============ iOS-READY DOWNLOAD + IG DEEPLINK WIRING ============
-// 1) Set your deployed Worker URL here:
-const FORCE_DOWNLOAD_URL = 'https://dawn-flower-a540.yss-rewind.workers.dev/'; // <-- replace after deploying the Worker above
+    // Test 2: buildWorkerUrl encodes u param correctly
+    test('buildWorkerUrl encodes and includes u', () => {
+      const sample = 'https://storage.googleapis.com/yss_media/NURSE%20JEI/%231.mp4';
+      const built = new URL(buildWorkerUrl(sample));
+      const got = built.searchParams.get('u');
+      if (got !== sample) throw new Error('u param mismatch');
+    });
 
-// 2) Helper: build a force-download URL for the current video
-function buildForceDownloadUrl(rawUrl) {
-  const u = new URL(FORCE_DOWNLOAD_URL);
-  u.searchParams.set('u', rawUrl);
-  // Nice filename for the save sheet
-  const fname = filenameFromUrl(rawUrl, 'YSSLoyalty-Rewind.mp4');
-  u.searchParams.set('filename', fname);
-  return u.toString();
-}
+    // Test 3: share button exists
+    test('shareBtn exists', () => {
+      if (!shareBtn) throw new Error('shareBtn not found');
+    });
 
-// 3) Open Instagram Stories (deeplink) with fallback
-function openInstagramStories() {
-  const deeplink = 'instagram://story-camera';
-  const fallback = 'https://www.instagram.com/';
-  const t0 = Date.now();
-  // Use a new window so the download navigation stays intact on iOS
-  window.location.href = deeplink;
-  setTimeout(() => { if (Date.now() - t0 < 2500) window.location.href = fallback; }, 1500);
-}
-
-// 4) Replace Share button behavior to *guarantee* iOS download then open IG
-(async function wireIOSForceDownload() {
-  const shareBtn = document.getElementById('shareBtn');
-  if (!shareBtn) return;
-
-  shareBtn.replaceWith(shareBtn.cloneNode(true)); // remove old listeners
-  const btn = document.getElementById('shareBtn');
-
-  btn.addEventListener('click', () => {
-    const src = player.currentSrc || (Array.isArray(slides) ? slides[current] : '');
-    if (!src) return;
-
-    // Create a hidden link pointing to the Worker (attachment headers)
-    const a = document.createElement('a');
-    a.href = buildForceDownloadUrl(src);
-    a.rel = 'noopener';
-    a.target = '_blank'; // keeps current page active while iOS shows the download sheet
-
-    // IMPORTANT: put both actions in the same user gesture
-    document.body.appendChild(a);
-    a.click();       // 1) triggers real file download via Worker on iOS
-    document.body.removeChild(a);
-
-    // 2) Nudge Instagram Stories shortly after
-    setTimeout(openInstagramStories, 300); // slight delay so the sheet can present
-  });
+    // Report
+    const passed = tests.filter(t => t[1]).length;
+    const failed = tests.length - passed;
+    console.log(`Self-tests: ${passed} passed, ${failed} failed`, tests);
+  })();
 })();
 </script>
 </body>
