@@ -142,7 +142,7 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
         <h2>Share to Instagram Stories</h2>
         <p>We’ll save the current video to your device and open Instagram Stories.</p>
         <div class="row">
-          <button class="btn" id="shareBtn">Share to Instagram</button>
+          <button class="btn" id="shareBtn">Share / Save to Photos</button>
         </div>
       </div>
       <button class="btn" id="replayBtn2" style="justify-self:center; margin-top:6px;">Replay</button>
@@ -388,16 +388,38 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
     });
   }
 
-  // --- Unified Share Flow ---
-  async function shareFlow() {
-    const src = player.currentSrc || slides[current];
-    // Start the download FIRST and wait briefly
-    await workerDownload(src, 'YSSLoyalty-Rewind.mp4');
-    // THEN open Instagram Stories
-    openInstagramStories();
-  }
+  // Try Share Sheet (files) first → user can pick "Save Video" (Photos) or Instagram
+// Fallback: Worker download, then open Instagram
+function shareOrDownloadThenIG(srcUrl) {
+  return new Promise(function(resolve) {
+    (function tryShare() {
+      // Guard for older browsers
+      if (!('fetch' in window) || !('File' in window)) return resolve(false);
+      fetch(srcUrl, { cache: 'no-store' })
+        .then(function(resp){ if (!resp.ok) throw new Error('HTTP '+resp.status); return resp.blob(); })
+        .then(function(blob){
+          var file = new File([blob], 'YSSLoyalty-Rewind.mp4', { type: 'video/mp4' });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            return navigator.share({ files: [file], title: 'YSSLoyalty Rewind' }).then(function(){ resolve(true); });
+          }
+          resolve(false);
+        })
+        .catch(function(){ resolve(false); });
+    })();
+  }).then(function(shared){
+    if (shared) return; // User completed via Share Sheet (could be Save Video → Photos or Instagram)
+    // Fallback: download via Worker, then open Instagram
+    return workerDownload(srcUrl, 'YSSLoyalty-Rewind.mp4').then(function(){ openInstagramStories(); });
+  });
+}
 
-  // Wire the button
+// --- Unified Share Flow ---
+function shareFlow() {
+  var src = player.currentSrc || slides[current];
+  shareOrDownloadThenIG(src);
+}
+
+// Wire the button
   shareBtn.addEventListener('click', shareFlow);
 
   // Initial state
@@ -407,54 +429,50 @@ video#player { position: absolute; inset: 0; width: 100%; height: 100%; object-f
   // Minimal Self-Tests (console)
   // =============================
   (function runSelfTests() {
-    const tests = [];
+    var tests = [];
     function test(name, fn) {
       try { fn(); tests.push([name, true]); }
       catch (e) { tests.push([name, false, e && e.message]); }
     }
 
     // Test 1: slides length
-    test('slides has 5 entries', () => {
-      if (slides.length !== 5) throw new Error('Expected 5 slides');
-    });
+    test('slides has 5 entries', function(){ if (slides.length !== 5) throw new Error('Expected 5 slides'); });
 
     // Test 2: buildWorkerUrl encodes u param correctly
-    test('buildWorkerUrl encodes and includes u', () => {
-      const sample = 'https://storage.googleapis.com/yss_media/NURSE%20JEI/%231.mp4';
-      const built = new URL(buildWorkerUrl(sample));
-      const got = built.searchParams.get('u');
+    test('buildWorkerUrl encodes and includes u', function(){
+      var sample = 'https://storage.googleapis.com/yss_media/NURSE%20JEI/%231.mp4';
+      var built = new URL(buildWorkerUrl(sample));
+      var got = built.searchParams.get('u');
       if (got !== sample) throw new Error('u param mismatch');
     });
 
     // Test 3: share button exists
-    test('shareBtn exists', () => {
-      if (!shareBtn) throw new Error('shareBtn not found');
-    });
+    test('shareBtn exists', function(){ if (!shareBtn) throw new Error('shareBtn not found'); });
 
-    // Test 4: worker URL base is correct and filename is present
-    test('worker URL base & filename', () => {
-      const sample = 'https://example.com/x.mp4';
-      const built = new URL(buildWorkerUrl(sample));
+    // Test 4: worker URL base & filename
+    test('worker URL base & filename', function(){
+      var sample = 'https://example.com/x.mp4';
+      var built = new URL(buildWorkerUrl(sample));
       if (built.origin !== new URL(FORCE_DOWNLOAD_BASE).origin) throw new Error('Wrong worker base');
-      const fname = built.searchParams.get('filename');
-      if (!fname || !fname.endsWith('.mp4')) throw new Error('filename param missing');
+      var fname = built.searchParams.get('filename');
+      if (!fname || !/\.mp4$/.test(fname)) throw new Error('filename param missing');
     });
 
-    // Test 5: constants sanity
-    test('DOWNLOAD_THEN_IG_DELAY_MS is a positive number', () => {
-      if (!(Number.isFinite(DOWNLOAD_THEN_IG_DELAY_MS) && DOWNLOAD_THEN_IG_DELAY_MS > 0)) {
-        throw new Error('Invalid DOWNLOAD_THEN_IG_DELAY_MS');
-      }
+    // Test 5: delay constant sanity
+    test('DOWNLOAD_THEN_IG_DELAY_MS is a positive number', function(){
+      if (!(Number.isFinite(DOWNLOAD_THEN_IG_DELAY_MS) && DOWNLOAD_THEN_IG_DELAY_MS > 0)) throw new Error('Invalid DOWNLOAD_THEN_IG_DELAY_MS');
     });
 
-    // Test 6: shareFlow is a function
-    test('shareFlow is function', () => {
-      if (typeof shareFlow !== 'function') throw new Error('shareFlow missing');
-    });
+    // Test 6: shareFlow & shareOrDownloadThenIG are functions
+    test('shareFlow exists', function(){ if (typeof shareFlow !== 'function') throw new Error('shareFlow missing'); });
+    test('shareOrDownloadThenIG exists', function(){ if (typeof shareOrDownloadThenIG !== 'function') throw new Error('shareOrDownloadThenIG missing'); });
 
-    const passed = tests.filter(t => t[1]).length;
-    const failed = tests.length - passed;
-    console.log(`Self-tests: ${passed} passed, ${failed} failed`, tests);
+    // Test 7: button label reflects Share/Save
+    test('shareBtn label updated', function(){ if (!/Share \/ Save to Photos/i.test(shareBtn.textContent)) throw new Error('Button label not updated'); });
+
+    var passed = tests.filter(function(t){return t[1];}).length;
+    var failed = tests.length - passed;
+    console.log('Self-tests: ' + passed + ' passed, ' + failed + ' failed', tests);
   })();
 })();
 </script>
