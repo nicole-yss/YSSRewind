@@ -89,11 +89,11 @@ body {
 .play-btn {
   width: 100px;
   height: 100px;
-  background: radial-gradient(rgba(152, 148, 183, 0.8) 60%, rgba(255, 255, 255, 1) 62%);
+  background: radial-gradient(rgba(195, 181, 255, 0.8) 60%, rgba(255, 255, 255, 1) 62%);
   border-radius: 50%;
   position: relative;
   display: block;
-  box-shadow: 0px 0px 25px 3px rgba(152, 148, 183, 0.8);
+  box-shadow: 0px 0px 25px 3px rgba(195, 181, 255, 0.8);
   border: none;
   cursor: pointer;
 }
@@ -179,12 +179,14 @@ body {
   background: linear-gradient(0deg, rgba(0,0,0,.8) 0%, rgba(0,0,0,.2) 45%, rgba(0,0,0,0) 70%);
   padding: 24px 16px calc(env(safe-area-inset-bottom) + 24px);
   align-content: end; gap: 12px;
+  justify-items: center; 
+  text-align: center;
 }
 .share.visible { display: grid; }
 .share .panel { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); border-radius: 18px; padding: 16px; backdrop-filter: blur(6px); }
 .share h2 { margin: 0 0 6px; font-size: 20px; }
 .share p { margin: 0 0 12px; color: var(--ui-muted); line-height: 1.35; }
-.share .row { display: flex; gap: 10px; }
+.share .row { display: flex; gap: 10px; justify-content: center;     }
 
 /* Accessibility: prevent accidental selection */
 .tapzone, .btn, .play-btn { -webkit-user-select: none; user-select: none; }
@@ -194,7 +196,9 @@ body {
   position: absolute; top: 52%; left: 50%; z-index: 45;
   display: none; opacity: 0; transform: translate(-50%, -50%) scale(0.98);
   transition: opacity .35s ease, transform .35s ease;
-  width: min(92vw, 560px); border-radius: 12px; overflow: hidden;
+  width: min(92vw, 560px); border-radius: 12px;
+  /* changed from overflow: hidden to visible so glow isn't clipped */
+  overflow: visible;
 }
 .spotify.visible { display: block; opacity: 1; transform: translate(-50%, -50%) scale(1); }
 
@@ -210,6 +214,16 @@ body {
   gap: 12px;
 }
 
+/* Make the whole card clickable */
+.spotify-link {
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Album cover with white pulsating glow */
 .spotify-cover {
   width: 160px;
   aspect-ratio: 1 / 1;
@@ -217,6 +231,20 @@ body {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+  animation: coverGlow 2s ease-in-out infinite;
+}
+
+/* Pulsating white glow animation */
+@keyframes coverGlow {
+  0% {
+    box-shadow: 0 0 0 rgba(255,255,255,0);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(255,255,255,0.8), 0 0 40px rgba(255,255,255,0.6);
+  }
+  100% {
+    box-shadow: 0 0 0 rgba(255,255,255,0);
+  }
 }
 
 .spotify-text {
@@ -295,21 +323,22 @@ body {
     <!-- Spotify playlist card (appears near the end of the last slide) -->
     <div class="spotify" id="spotifyPanel">
       <div class="spotify-card">
-        <div
-          class="spotify-cover"
-          style="background-image:url('https://storage.googleapis.com/yss_media/Screenshot%202025-11-15%20at%206.42.34%E2%80%AFpm.png');"
-        ></div>
-        <div class="spotify-text">
-          <div class="spotify-title">We made a playlist for you</div>
-          <a
-            href="https://open.spotify.com/playlist/7GcCM7FWzvBeobNn0hJjss?si=uYN0DxwRRTmBGOHygRJM8g"
-            target="_blank"
-            rel="noopener"
-            class="spotify-link-text"
-          >
-            Get playlist here
-          </a>
-        </div>
+        <a
+          href="https://open.spotify.com/playlist/7GcCM7FWzvBeobNn0hJjss?si=uYN0DxwRRTmBGOHygRJM8g"
+          target="_blank"
+          rel="noopener"
+          class="spotify-link"
+        >
+          <div
+            class="spotify-cover"
+            style="background-image:url('https://storage.googleapis.com/yss_media/Screenshot%202025-11-15%20at%206.42.34%E2%80%AFpm.png');"
+          ></div>
+          <div class="spotify-text">
+            <span class="spotify-link-text">
+              TAP HERE TO GET YOUR PLAYLIST
+            </span>
+          </div>
+        </a>
       </div>
     </div>
 
@@ -321,19 +350,19 @@ body {
     <!-- Share overlay -->
     <div class="share" id="share">
       <div class="panel">
-        <h2>Share to Instagram Stories</h2>
+        <h2>Or download and share to IG stories</h2>
         <p>Share your Hair Club 2025 winning moments!</p>
         <div class="row">
           <button
             class="btn inline pill"
             id="shareBtn"
             aria-label="Share to Instagram Stories"
+            style="justify-self:center;"
           >
             SHARE
           </button>
         </div>
       </div>
-      <button class="btn" id="replayBtn2" style="justify-self:center; margin-top:6px;">Replay</button>
     </div>
   </div>
 </div>
@@ -341,7 +370,11 @@ body {
 <script>
 (function() {
   // Five explicit clips (order matters)
-  var slides = [ "https://storage.googleapis.com/yss_media/Hidden%20Cove%20Hair/1.mp4", "https://storage.googleapis.com/yss_media/Hidden%20Cove%20Hair/2.mp4", "https://storage.googleapis.com/yss_media/Hidden%20Cove%20Hair/3.mp4", "https://storage.googleapis.com/yss_media/Hidden%20Cove%20Hair/4.mp4", "https://storage.googleapis.com/yss_media/Hidden%20Cove%20Hair/5.mp4" ];
+  var slides = [ "https://storage.googleapis.com/yss_media/Hidden%20Cove%20Hair/1.mp4", 
+                "https://storage.googleapis.com/yss_media/Hidden%20Cove%20Hair/2.mp4", 
+                "https://storage.googleapis.com/yss_media/Hidden%20Cove%20Hair/3.mp4", 
+                "https://storage.googleapis.com/yss_media/Hidden%20Cove%20Hair/4.mp4", 
+                "https://storage.googleapis.com/yss_media/Hidden%20Cove%20Hair/slide5.mp4" ];
 
   var stage = document.getElementById('stage');
   var progressRoot = document.getElementById('progress');
@@ -354,7 +387,7 @@ body {
   var shareOverlay = document.getElementById('share');
   var shareBtn = document.getElementById('shareBtn');
   var replayBtn = document.getElementById('replayBtn');
-  var replayBtn2 = document.getElementById('replayBtn2');
+  var replayBtn2 = document.getElementById('replayBtn2'); // optional, guarded below
   var spotifyPanel = document.getElementById('spotifyPanel');
   var downloadBtn = document.getElementById('downloadBtn');
 
@@ -374,6 +407,13 @@ body {
   var activeId = 'A'; // 'A' or 'B'
   function activePlayer(){ return activeId === 'A' ? playerA : playerB; }
   function idlePlayer(){ return activeId === 'A' ? playerB : playerA; }
+
+  // 🔑 helper: pause both players to avoid overlapping audio
+  function pauseBothPlayers() {
+    [playerA, playerB].forEach(function (p) {
+      try { p.pause(); } catch (e) {}
+    });
+  }
 
   // -------------------------
   // Aggressive video preloader (preload all clips)
@@ -433,7 +473,8 @@ body {
   function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
 
   function loadSlide(i, opts) {
-    opts = opts || {}; var autoplay = (opts.autoplay === false) ? false : true;
+    opts = opts || {}; 
+    var autoplay = (opts.autoplay === false) ? false : true;
     current = clamp(i, 0, slides.length - 1);
     shareOverlay.classList.remove('visible');
     replayBtn.style.display = 'none';
@@ -447,6 +488,9 @@ body {
     for (var j = 0; j < slides.length; j++) {
       fills[j].style.width = j < current ? '100%' : '0%';
     }
+
+    // 🔑 make sure no previous audio is playing
+    pauseBothPlayers();
 
     var url = slides[current];
     var cur = activePlayer();
@@ -472,10 +516,14 @@ body {
       try { p = cur.play(); } catch(e){}
       if (p && typeof p.catch === 'function') { p.catch(function(){ /* autoplay blocked */ }); }
     }
+
     if (cur.readyState >= 2) {
       maybePlay();
     } else {
-      cur.addEventListener('loadedmetadata', function once(){ cur.removeEventListener('loadedmetadata', once); maybePlay(); }, { once: true });
+      cur.addEventListener('loadedmetadata', function once(){
+        cur.removeEventListener('loadedmetadata', once);
+        maybePlay();
+      }, { once: true });
     }
 
     cancelAnimationFrame(raf);
@@ -484,17 +532,24 @@ body {
 
   function next() {
     if (current < slides.length - 1) {
-      // Seamless swap to prepped idle player
       var cur = activePlayer();
       var idle = idlePlayer();
+
+      // 🔑 ensure old slide audio is stopped before switching
+      pauseBothPlayers();
+
       idle.style.opacity = '1';
       cur.style.opacity = '0';
-      try { idle.currentTime = 0; idle.play(); } catch(e){}
+
+      try { idle.currentTime = 0; } catch(e){}
+      try { idle.play(); } catch(e){}
+
       activeId = activeId === 'A' ? 'B' : 'A';
 
       // Advance index and prep the next idle source
       current += 1;
       fills[current - 1].style.width = '100%';
+
       var newIdle = idlePlayer();
       var nextIdx = current + 1;
       if (nextIdx < slides.length) {
@@ -504,14 +559,18 @@ body {
         newIdle.removeAttribute('src');
       }
 
-      cancelAnimationFrame(raf); tick();
+      cancelAnimationFrame(raf);
+      tick();
     } else {
       showShare();
     }
   }
+
   function prev() {
     var cur = activePlayer();
-    if (cur.currentTime > 0.25) { try { cur.currentTime = 0; } catch(e){} }
+    if (cur.currentTime > 0.25) { 
+      try { cur.currentTime = 0; } catch(e){} 
+    }
     else if (current > 0) loadSlide(current - 1);
   }
 
@@ -541,7 +600,14 @@ body {
     for (var i2 = 0; i2 < fills.length; i2++) { fills[i2].style.width = '100%'; }
     replayBtn.style.display = 'inline-flex';
     shareOverlay.classList.add('visible');
-    try { activePlayer().pause(); } catch (e) {}
+
+    // 🔑 stop everything once share is visible
+    pauseBothPlayers();
+
+    // 🔑 also hide Spotify and reset so it doesn't stick around on replay
+    spotifyPanel.classList.remove('visible');
+    spotifyPanel.style.display = 'none';
+    spotifyShown = false;
   }
 
   // Event wiring (tap & click)
@@ -600,7 +666,7 @@ body {
     loadSlide(0);
   }
   replayBtn.addEventListener('click', replay);
-  replayBtn2.addEventListener('click', replay);
+  if (replayBtn2) replayBtn2.addEventListener('click', replay);
 
   // Build a Worker download URL for a given raw source URL + nice filename
   function buildWorkerUrl(rawUrl, niceName) {
