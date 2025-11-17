@@ -44,10 +44,7 @@ body {
 /* Tap zones */
 .tapzone { position: absolute; top: 0; bottom: 0; width: 50%; z-index: 15; }
 .left { left: 0; } .right { right: 0; }
-/* Optional subtle gradient hints on edges */
-.edge-hint { position:absolute; top:0; bottom:0; width:16%; z-index: 10; pointer-events:none; }
-.edge-left { left:0; background: linear-gradient(90deg, rgba(0,0,0,.35), rgba(0,0,0,0)); }
-.edge-right { right:0; background: linear-gradient(270deg, rgba(0,0,0,.35), rgba(0,0,0,0)); }
+
 /* Top UI inside stage */
 .top-ui {
   position: absolute; left: 12px; right: 12px; top: 18px;
@@ -76,7 +73,7 @@ body {
   width: 18px;
   height: 18px;
   display: block;
-  filter: invert(1) brightness(2); /* make icon white */
+  filter: invert(1) brightness(2);
 }
 
 /* Gate overlay */
@@ -97,14 +94,11 @@ body {
   border: none;
   cursor: pointer;
 }
-
-/* triangle */
 .play-btn::after {
   content: "";
   position: absolute;
   left: 50%;
   top: 50%;
-  -webkit-transform: translateX(-40%) translateY(-50%);
   transform: translateX(-40%) translateY(-50%);
   transform-origin: center center;
   width: 0;
@@ -113,26 +107,14 @@ body {
   border-bottom: 15px solid transparent;
   border-left: 25px solid #fff;
   z-index: 100;
-  -webkit-transition: all 400ms cubic-bezier(0.55, 0.055, 0.675, 0.19);
   transition: all 400ms cubic-bezier(0.55, 0.055, 0.675, 0.19);
 }
-
-/* pulse wave */
 .play-btn:before {
   content: "";
   position: absolute;
   width: 150%;
   height: 150%;
-  -webkit-animation-delay: 0s;
-  animation-delay: 0s;
-  -webkit-animation: pulsate1 2s;
-  animation: pulsate1 2s;
-  -webkit-animation-direction: forwards;
-  animation-direction: forwards;
-  -webkit-animation-iteration-count: infinite;
-  animation-iteration-count: infinite;
-  -webkit-animation-timing-function: steps;
-  animation-timing-function: steps;
+  animation: pulsate1 2s forwards infinite steps;
   opacity: 1;
   border-radius: 50%;
   border: 5px solid rgba(255, 255, 255, .75);
@@ -140,33 +122,14 @@ body {
   left: -30%;
   background: rgba(152, 148, 183, 0);
 }
-
-@-webkit-keyframes pulsate1 {
-  0% {
-    -webkit-transform: scale(0.6);
-    transform: scale(0.6);
-    opacity: 1;
-    box-shadow: inset 0px 0px 25px 3px rgba(255, 255, 255, 0.75),
-      0px 0px 25px 10px rgba(255, 255, 255, 0.75);
-  }
-  100% {
-    -webkit-transform: scale(1);
-    transform: scale(1);
-    opacity: 0;
-    box-shadow: none;
-  }
-}
-
 @keyframes pulsate1 {
   0% {
-    -webkit-transform: scale(0.6);
     transform: scale(0.6);
     opacity: 1;
     box-shadow: inset 0px 0px 25px 3px rgba(255, 255, 255, 0.75),
       0px 0px 25px 10px rgba(255, 255, 255, 0.75);
   }
   100% {
-    -webkit-transform: scale(1);
     transform: scale(1);
     opacity: 0;
     box-shadow: none;
@@ -184,7 +147,6 @@ body {
   justify-items: center;
   text-align: center;
 
-  /* Always in layout so transitions work */
   display: grid;
   opacity: 0;
   transform: translateY(8px);
@@ -203,10 +165,7 @@ body {
   padding: 16px;
   backdrop-filter: blur(6px);
 
-  /* lift it a little higher from the bottom */
   margin-bottom: 32px;
-
-  /* start lower & hidden, then ease up */
   transform: translateY(24px);
   opacity: 0;
   transition: transform .45s ease-out, opacity .45s ease-out;
@@ -228,11 +187,9 @@ body {
   display: none; opacity: 0; transform: translate(-50%, -50%) scale(0.98);
   transition: opacity .35s ease, transform .35s ease;
   width: min(92vw, 580px); border-radius: 12px;
-  overflow: visible; /* so glow isn't clipped */
+  overflow: visible;
 }
 .spotify.visible { display: block; opacity: 1; transform: translate(-50%, -50%) scale(1); }
-
-/* No black background behind album cover */
 .spotify-card {
   background: transparent;
   border-radius: 16px;
@@ -243,8 +200,6 @@ body {
   align-items: center;
   gap: 12px;
 }
-
-/* Make the whole card clickable */
 .spotify-link {
   text-decoration: none;
   display: flex;
@@ -252,8 +207,6 @@ body {
   align-items: center;
   gap: 12px;
 }
-
-/* Album cover with blue (#3d54dc) pulsating glow */
 .spotify-cover {
   width: 200px;
   aspect-ratio: 1 / 1;
@@ -263,31 +216,17 @@ body {
   background-repeat: no-repeat;
   animation: coverGlow 2s ease-in-out infinite;
 }
-
-/* Pulsating blue glow animation */
 @keyframes coverGlow {
-  0% {
-    box-shadow: 0 0 0 rgba(61,84,220,0);
-  }
-  50% {
-    box-shadow: 0 0 20px rgba(61,84,220,0.8), 0 0 40px rgba(61,84,220,0.6);
-  }
-  100% {
-    box-shadow: 0 0 0 rgba(61,84,220,0);
-  }
+  0% { box-shadow: 0 0 0 rgba(61,84,220,0); }
+  50% { box-shadow: 0 0 20px rgba(61,84,220,0.8), 0 0 40px rgba(61,84,220,0.6); }
+  100% { box-shadow: 0 0 0 rgba(61,84,220,0); }
 }
-
-.spotify-text {
-  text-align: center;
-}
-
+.spotify-text { text-align: center; }
 .spotify-title {
   font-size: 16px;
   font-weight: 600;
   margin-bottom: 6px;
 }
-
-/* Plain white TAP HERE text (no glow) */
 .spotify-link-text {
   font-weight: 700;
   color: #ffffff;
@@ -299,12 +238,9 @@ body {
 </head>
 <body>
 <div class="root">
-  <!-- 9:16 stage -->
   <div class="stage" id="stage">
-    <!-- Progress bars -->
     <div class="progress" id="progress"></div>
 
-    <!-- Top UI: logo/title + Download + Replay -->
     <div class="top-ui">
       <div style="display:flex; align-items:center; gap:8px; opacity:.9">
         <img
@@ -315,7 +251,6 @@ body {
         <div style="font-weight:700">YSSLoyalty Rewind</div>
       </div>
       <div style="display:flex; gap:8px; align-items:center;" class="actions">
-        <!-- Download icon button for current slide (clickable on every slide) -->
         <button
           id="downloadBtn"
           class="icon-btn pill"
@@ -330,17 +265,13 @@ body {
       </div>
     </div>
 
-    <!-- Video players (A/B) for seamless switching -->
     <video id="playerA" playsinline preload="auto" style="opacity:1;"></video>
     <video id="playerB" playsinline preload="auto" style="opacity:0; pointer-events:none;"></video>
 
-    <!-- Tap zones (left/right) -->
+    <!-- Tap zones (no more gradient edge-hints) -->
     <div class="tapzone left" id="tapLeft" aria-label="Previous story" role="button"></div>
     <div class="tapzone right" id="tapRight" aria-label="Next story" role="button"></div>
-    <div class="edge-hint edge-left"></div>
-    <div class="edge-hint edge-right"></div>
 
-    <!-- Spotify playlist card (appears near the end of the last slide) -->
     <div class="spotify" id="spotifyPanel">
       <div class="spotify-card">
         <a
@@ -362,12 +293,10 @@ body {
       </div>
     </div>
 
-    <!-- Minimal Autoplay gate with new PLAY button -->
     <div class="gate" id="gate" aria-label="Play">
       <button class="play-btn" id="startBtn" aria-label="Play"></button>
     </div>
 
-    <!-- Share overlay -->
     <div class="share" id="share">
       <div class="panel">
         <h2>Or download and share to IG stories</h2>
@@ -389,12 +318,13 @@ body {
 
 <script>
 (function() {
-  // Five explicit clips (order matters)
-  var slides = [ "https://storage.googleapis.com/yss_media/Hidden%20Cove%20Hair/1.mp4", 
-                "https://storage.googleapis.com/yss_media/Hidden%20Cove%20Hair/2.mp4", 
-                "https://storage.googleapis.com/yss_media/Hidden%20Cove%20Hair/3.mp4", 
-                "https://storage.googleapis.com/yss_media/Hidden%20Cove%20Hair/4.mp4", 
-                "https://storage.googleapis.com/yss_media/Hidden%20Cove%20Hair/slide5.mp4" ];
+  var slides = [
+    "https://storage.googleapis.com/yss_media/Hidden%20Cove%20Hair/1.mp4",
+    "https://storage.googleapis.com/yss_media/Hidden%20Cove%20Hair/2.mp4",
+    "https://storage.googleapis.com/yss_media/Hidden%20Cove%20Hair/3.mp4",
+    "https://storage.googleapis.com/yss_media/Hidden%20Cove%20Hair/4.mp4",
+    "https://storage.googleapis.com/yss_media/Hidden%20Cove%20Hair/slide5.mp4"
+  ];
 
   var stage = document.getElementById('stage');
   var progressRoot = document.getElementById('progress');
@@ -407,16 +337,11 @@ body {
   var shareOverlay = document.getElementById('share');
   var shareBtn = document.getElementById('shareBtn');
   var replayBtn = document.getElementById('replayBtn');
-  var replayBtn2 = document.getElementById('replayBtn2'); // optional, guarded below
   var spotifyPanel = document.getElementById('spotifyPanel');
   var downloadBtn = document.getElementById('downloadBtn');
 
-  // === Force-download Worker base (your deployed URL) ===
   var FORCE_DOWNLOAD_BASE = 'https://dawn-flower-a540.yss-rewind.workers.dev';
-
-  // Spotify appears before the end of the last slide
   var SPOTIFY_LEAD_S = 6.7;
-  // Wait this long after starting the download before opening Instagram (ms)
   var DOWNLOAD_THEN_IG_DELAY_MS = 1200;
 
   var spotifyShown = false;
@@ -425,23 +350,19 @@ body {
   var raf = null;
   var isPressing = false;
   var touchStartX = null;
-  var activeId = 'A'; // 'A' or 'B'
+  var activeId = 'A';
+
   function activePlayer(){ return activeId === 'A' ? playerA : playerB; }
   function idlePlayer(){ return activeId === 'A' ? playerB : playerA; }
-
   function pauseBothPlayers() {
     [playerA, playerB].forEach(function (p) {
       try { p.pause(); } catch (e) {}
     });
   }
 
-  // -------------------------
-  // Aggressive video preloader (preload all clips)
-  // -------------------------
   var Preloader = (function(){
-    var blobs = new Map();       // url -> { objectUrl, ts }
-    var inflight = new Map();    // url -> Promise
-
+    var blobs = new Map();
+    var inflight = new Map();
     function fetchBlob(u){
       if (inflight.has(u)) return inflight.get(u);
       var p = fetch(u, { cache: 'force-cache', credentials: 'omit' })
@@ -457,25 +378,20 @@ body {
       inflight.set(u, p);
       return p;
     }
-
     function urlFor(u){
       var entry = blobs.get(u);
       return entry ? entry.objectUrl : u;
     }
-
     function warm(u){
       return fetchBlob(u).catch(function(){ return null; });
     }
-
     function evictAll(){
       blobs.forEach(function(rec){ try { URL.revokeObjectURL(rec.objectUrl); } catch(e){} });
       blobs.clear();
     }
-
     return { warm: warm, urlFor: urlFor, evictAll: evictAll };
   })();
 
-  // Build progress bars
   var fills = [];
   for (var i = 0; i < slides.length; i++) {
     var track = document.createElement('div');
@@ -487,18 +403,18 @@ body {
     track.appendChild(fill);
     progressRoot.appendChild(track);
     fills.push(fill);
-    (function(idx){ track.addEventListener('click', function(){ loadSlide(idx); }); })(i);
+    (function(idx){
+      track.addEventListener('click', function(){ loadSlide(idx); });
+    })(i);
   }
 
   function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
-
   function clearShareTimeout() {
     if (shareRevealTimeout) {
       clearTimeout(shareRevealTimeout);
       shareRevealTimeout = null;
     }
   }
-
   function resetSpotifyAndShare() {
     spotifyPanel.classList.remove('visible');
     spotifyPanel.style.display = 'none';
@@ -507,31 +423,25 @@ body {
     clearShareTimeout();
   }
 
-  // Helper: “single tap left” replay behavior + reset overlays
   function replayCurrentSlideFromLeftTap() {
     var cur = activePlayer();
+    resetSpotifyAndShare();
+    replayBtn.style.display = 'none';
     try { cur.currentTime = 0; } catch(e) {}
     if (fills[current]) fills[current].style.width = '0%';
-    resetSpotifyAndShare();
     try { cur.play(); } catch(e) {}
     cancelAnimationFrame(raf);
     tick();
   }
 
   function loadSlide(i, opts) {
-    opts = opts || {}; 
+    opts = opts || {};
     var autoplay = (opts.autoplay === false) ? false : true;
     current = clamp(i, 0, slides.length - 1);
-    shareOverlay.classList.remove('visible');
+
+    resetSpotifyAndShare();
     replayBtn.style.display = 'none';
-    clearShareTimeout();
 
-    // Hide Spotify unless we're about to show on last slide
-    spotifyPanel.classList.remove('visible');
-    spotifyPanel.style.display = 'none';
-    spotifyShown = false;
-
-    // Reset progress bars up to current
     for (var j = 0; j < slides.length; j++) {
       fills[j].style.width = j < current ? '100%' : '0%';
     }
@@ -558,7 +468,7 @@ body {
       if (!autoplay) return;
       var p;
       try { p = cur.play(); } catch(e){}
-      if (p && typeof p.catch === 'function') { p.catch(function(){ /* autoplay blocked */ }); }
+      if (p && typeof p.catch === 'function') { p.catch(function(){}); }
     }
 
     if (cur.readyState >= 2) {
@@ -580,7 +490,6 @@ body {
       var idle = idlePlayer();
 
       pauseBothPlayers();
-
       idle.style.opacity = '1';
       cur.style.opacity = '0';
 
@@ -610,11 +519,13 @@ body {
 
   function prev() {
     var cur = activePlayer();
-    // Single tap left: replay current slide (do not go back) when >0.25s
-    if (cur.currentTime > 0.25) {
+    if (current === slides.length - 1) {
       replayCurrentSlideFromLeftTap();
+      return;
     }
-    else if (current > 0) {
+    if (cur.currentTime > 0.25) {
+      try { cur.currentTime = 0; } catch(e){}
+    } else if (current > 0) {
       loadSlide(current - 1);
     }
   }
@@ -626,7 +537,6 @@ body {
         var pct = (cur.currentTime / cur.duration) * 100;
         fills[current].style.width = clamp(pct, 0, 100) + '%';
       }
-      // Reveal playlist card during the end of the final slide
       if (!spotifyShown && current === slides.length - 1) {
         var remaining = cur.duration - cur.currentTime;
         if (remaining <= SPOTIFY_LEAD_S) {
@@ -636,7 +546,6 @@ body {
           });
           spotifyShown = true;
 
-          // Schedule share box to ease in 1s after Spotify appears
           clearShareTimeout();
           shareRevealTimeout = setTimeout(function() {
             if (current === slides.length - 1 && spotifyShown) {
@@ -655,34 +564,30 @@ body {
     shareOverlay.classList.add('visible');
 
     pauseBothPlayers();
-
     spotifyPanel.classList.remove('visible');
     spotifyPanel.style.display = 'none';
     spotifyShown = false;
     clearShareTimeout();
   }
 
-  // Event wiring (tap & click)
   tapRight.addEventListener('click', next);
   tapLeft.addEventListener('click', prev);
   playerA.addEventListener('ended', next);
   playerB.addEventListener('ended', next);
 
-  // Also allow “left back” behavior while share overlay is up
   shareOverlay.addEventListener('click', function(e) {
-    if (e.target.closest('#shareBtn')) return; // SHARE button only
+    if (e.target.closest('#shareBtn')) return;
+    e.stopPropagation();
     var rect = shareOverlay.getBoundingClientRect();
     var x = e.clientX - rect.left;
-    if (x < rect.width / 2) {
-      // Treat left-half click on overlay as a single-left-tap replay
+    if (x < rect.width / 2 && current === slides.length - 1) {
       replayCurrentSlideFromLeftTap();
     }
   });
 
-  // Press & hold to pause / resume
   function pressStart(e){
     if (getComputedStyle(gate).display !== 'none') return;
-    if (e && (e.target.closest('.gate') || e.target.closest(' .progress') || e.target.closest('button'))) return;
+    if (e && (e.target.closest('.gate') || e.target.closest('.progress') || e.target.closest('button'))) return;
     isPressing = true;
     try { activePlayer().pause(); } catch (err) {}
   }
@@ -696,7 +601,6 @@ body {
   stage.addEventListener('pointercancel', pressEnd);
   stage.addEventListener('pointerleave', pressEnd);
 
-  // Swipe navigation (touch)
   stage.addEventListener('touchstart', function(e){ touchStartX = e.changedTouches[0].clientX; }, { passive: true });
   stage.addEventListener('touchend', function(e){
     if (touchStartX == null) return;
@@ -706,10 +610,10 @@ body {
     if (Math.abs(dx) > THRESH) { if (dx < 0) next(); else prev(); }
   });
 
-  // Pause when tab goes background
-  document.addEventListener('visibilitychange', function(){ if (document.hidden) { try { activePlayer().pause(); } catch (e) {} } });
+  document.addEventListener('visibilitychange', function(){
+    if (document.hidden) { try { activePlayer().pause(); } catch (e) {} }
+  });
 
-  // Gate controls
   function startPlayback() {
     playerA.muted = false; playerB.muted = false;
     gate.style.display = 'none';
@@ -718,7 +622,6 @@ body {
   gate.addEventListener('click', function(e){ if (e.target.closest('#startBtn')) startPlayback(); });
   startBtn.addEventListener('click', function(e){ e.stopPropagation(); startPlayback(); });
 
-  // Replay from top button
   function replay() {
     current = 0;
     resetSpotifyAndShare();
@@ -726,9 +629,7 @@ body {
     loadSlide(0);
   }
   replayBtn.addEventListener('click', replay);
-  if (replayBtn2) replayBtn2.addEventListener('click', replay);
 
-  // Build a Worker download URL for a given raw source URL + nice filename
   function buildWorkerUrl(rawUrl, niceName) {
     niceName = niceName || 'YSSLoyalty-Rewind.mp4';
     var u = new URL(FORCE_DOWNLOAD_BASE);
@@ -737,7 +638,6 @@ body {
     return u.toString();
   }
 
-  // Trigger a real device download without navigating away (works better on iOS)
   function workerDownload(rawUrl, niceName) {
     niceName = niceName || 'YSSLoyalty-Rewind.mp4';
     var href = buildWorkerUrl(rawUrl, niceName);
@@ -749,7 +649,6 @@ body {
         iframe.style.display = 'none';
         document.body.appendChild(iframe);
       }
-
       var settled = false;
       function done(){ if (settled) return; settled = true; resolve(); }
       var safety = setTimeout(done, DOWNLOAD_THEN_IG_DELAY_MS);
@@ -765,15 +664,12 @@ body {
     });
   }
 
-  // Download current slide video as its own file
   function downloadCurrentSlide() {
     var src = slides[current];
     var niceName = 'YSSLoyalty-Rewind-slide-' + (current + 1) + '.mp4';
     workerDownload(src, niceName);
   }
 
-  // Try Share Sheet (files) first → user can pick "Save Video" (Photos) or Instagram
-  // Fallback: Worker download, then open Instagram
   function shareOrDownloadThenIG(srcUrl) {
     return new Promise(function(resolve){
       if (!('fetch' in window) || !('File' in window)) return resolve(false);
@@ -799,38 +695,21 @@ body {
     });
   }
 
-  // --- Unified Share Flow ---
   function shareFlow() {
     var src = activePlayer().currentSrc || slides[current];
     shareOrDownloadThenIG(src);
   }
 
-  // Wire the buttons
   shareBtn.addEventListener('click', shareFlow);
   downloadBtn.addEventListener('click', function(e) {
     e.stopPropagation();
     downloadCurrentSlide();
   });
 
-  // Initial state
   playerA.style.opacity = '1';
   playerB.style.opacity = '0';
   loadSlide(0, { autoplay: false });
-
-  // Aggressively preload ALL videos on first load
   slides.forEach(function(u){ Preloader.warm(u); });
-
-  // Minimal self-tests
-  (function runSelfTests() {
-    var tests = [];
-    function test(name, fn) {
-      try { fn(); tests.push([name, true]); }
-      catch (e) { tests.push([name, false, e && e.message]); }
-    }
-    test('slides has 5 entries', function(){ if (slides.length !== 5) throw new Error('Expected 5 slides'); });
-    test('shareBtn exists', function(){ if (!shareBtn) throw new Error('shareBtn not found'); });
-    console.log('Self-tests:', tests);
-  })();
 })();
 </script>
 </body>
