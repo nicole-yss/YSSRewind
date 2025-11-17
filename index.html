@@ -61,6 +61,21 @@ body {
 .btn.secondary { background: rgba(255,255,255,.15); color: #fff; backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,.25); }
 .btn.inline { padding: 10px 12px; border-radius: 12px; font-weight: 600; }
 
+/* Icon-only button for share */
+.icon-btn {
+  padding: 10px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.icon-btn img {
+  width: 18px;
+  height: 18px;
+  display: block;
+  filter: invert(1) brightness(2); /* make icon white */
+}
+
 /* Gate overlay (TEXT “PLAY”) */
 .gate {
   position: absolute; inset: 0; display: grid; place-items: center;
@@ -89,7 +104,7 @@ body {
 /* Accessibility: prevent accidental selection */
 .tapzone, .btn, .play-text-btn { -webkit-user-select: none; user-select: none; }
 
-/* Spotify embed panel */
+/* Spotify playlist panel */
 .spotify {
   position: absolute; top: 52%; left: 50%; z-index: 45;
   display: none; opacity: 0; transform: translate(-50%, -50%) scale(0.98);
@@ -97,6 +112,43 @@ body {
   width: min(92vw, 560px); border-radius: 12px; overflow: hidden;
 }
 .spotify.visible { display: block; opacity: 1; transform: translate(-50%, -50%) scale(1); }
+
+.spotify-card {
+  background: rgba(0, 0, 0, 0.85);
+  border-radius: 16px;
+  padding: 16px 18px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.spotify-cover {
+  width: 160px;
+  aspect-ratio: 1 / 1;
+  border-radius: 12px;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.spotify-text {
+  text-align: center;
+}
+
+.spotify-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.spotify-link {
+  font-size: 14px;
+  color: #1db954;
+  text-decoration: underline;
+  cursor: pointer;
+}
 </style>
 </head>
 <body>
@@ -106,7 +158,7 @@ body {
     <!-- Progress bars -->
     <div class="progress" id="progress"></div>
 
-      <!-- Top UI: logo/title + Replay (NO share button) -->
+    <!-- Top UI: logo/title + Download + Replay -->
     <div class="top-ui">
       <div style="display:flex; align-items:center; gap:8px; opacity:.9">
         <img
@@ -117,6 +169,7 @@ body {
         <div style="font-weight:700">YSSLoyalty Rewind</div>
       </div>
       <div style="display:flex; gap:8px; align-items:center;" class="actions">
+        <button id="downloadBtn" class="btn inline pill">Download</button>
         <button id="replayBtn" class="btn inline pill" style="display:none">Replay</button>
       </div>
     </div>
@@ -131,9 +184,25 @@ body {
     <div class="edge-hint edge-left"></div>
     <div class="edge-hint edge-right"></div>
 
-    <!-- Spotify embed (appears near the end of the last slide) -->
+    <!-- Spotify playlist card (appears near the end of the last slide) -->
     <div class="spotify" id="spotifyPanel">
-      <iframe data-testid="embed-iframe" style="border-radius:12px" data-src="https://open.spotify.com/embed/playlist/5h8G9staxe6l3dSb8CKU08?utm_source=generator&theme=0" width="100%" height="152" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
+      <div class="spotify-card">
+        <div
+          class="spotify-cover"
+          style="background-image:url('https://storage.googleapis.com/yss_media/YSSLoyaltyV2%20JPG%2003.png');"
+        ></div>
+        <div class="spotify-text">
+          <div class="spotify-title">We made a playlist for you</div>
+          <a
+            href="https://open.spotify.com/playlist/5h8G9staxe6l3dSb8CKU08"
+            target="_blank"
+            rel="noopener"
+            class="spotify-link"
+          >
+            Get playlist here
+          </a>
+        </div>
+      </div>
     </div>
 
     <!-- Minimal Autoplay gate (TEXT “PLAY”) -->
@@ -141,19 +210,28 @@ body {
       <button class="play-text-btn" id="startBtn" aria-label="Play">PLAY</button>
     </div>
 
-        <!-- Share overlay (kept) -->
-      <div class="share" id="share">
-        <div class="panel">
-          <h2>Share to Instagram Stories</h2>
-          <p>Share your Hair Club 2025 winning moments!</p>
-          <div class="row">
-            <button class="btn" id="shareBtn">Share now</button>
-          </div>
+    <!-- Share overlay (kept) -->
+    <div class="share" id="share">
+      <div class="panel">
+        <h2>Share to Instagram Stories</h2>
+        <p>Share your Hair Club 2025 winning moments!</p>
+        <div class="row">
+          <button
+            class="btn secondary icon-btn"
+            id="shareBtn"
+            aria-label="Share to Instagram Stories"
+          >
+            <img
+              src="https://storage.googleapis.com/yss_media/share.png"
+              alt=""
+            />
+          </button>
         </div>
-        <button class="btn" id="replayBtn2" style="justify-self:center; margin-top:6px;">Replay</button>
       </div>
+      <button class="btn" id="replayBtn2" style="justify-self:center; margin-top:6px;">Replay</button>
     </div>
   </div>
+</div>
 
 <script>
 (function() {
@@ -179,7 +257,7 @@ body {
   var replayBtn = document.getElementById('replayBtn');
   var replayBtn2 = document.getElementById('replayBtn2');
   var spotifyPanel = document.getElementById('spotifyPanel');
-  var spotifyIframe = spotifyPanel.querySelector('iframe');
+  var downloadBtn = document.getElementById('downloadBtn');
 
   // === Force-download Worker base (your deployed URL) ===
   var FORCE_DOWNLOAD_BASE = 'https://dawn-flower-a540.yss-rewind.workers.dev';
@@ -345,14 +423,14 @@ body {
         var pct = (cur.currentTime / cur.duration) * 100;
         fills[current].style.width = clamp(pct, 0, 100) + '%';
       }
-      // Reveal Spotify during the end of the final slide
+      // Reveal playlist card during the end of the final slide
       if (!spotifyShown && current === slides.length - 1) {
         var remaining = cur.duration - cur.currentTime;
         if (remaining <= SPOTIFY_LEAD_S) {
-          var src = spotifyIframe.getAttribute('data-src');
-          if (src && !spotifyIframe.src) spotifyIframe.src = src;
           spotifyPanel.style.display = 'block';
-          requestAnimationFrame(function(){ spotifyPanel.classList.add('visible'); });
+          requestAnimationFrame(function () {
+            spotifyPanel.classList.add('visible');
+          });
           spotifyShown = true;
         }
       }
@@ -483,6 +561,13 @@ body {
     });
   }
 
+  // Download current slide video as its own file
+  function downloadCurrentSlide() {
+    var src = slides[current];
+    var niceName = 'YSSLoyalty-Rewind-slide-' + (current + 1) + '.mp4';
+    workerDownload(src, niceName);
+  }
+
   // Try Share Sheet (files) first → user can pick "Save Video" (Photos) or Instagram
   // Fallback: Worker download, then open Instagram
   function shareOrDownloadThenIG(srcUrl) {
@@ -511,8 +596,12 @@ body {
     shareOrDownloadThenIG(src);
   }
 
-  // Wire the button
+  // Wire the buttons
   shareBtn.addEventListener('click', shareFlow);
+  downloadBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    downloadCurrentSlide();
+  });
 
   // Initial state
   playerA.style.opacity = '1';
@@ -567,11 +656,16 @@ body {
     test('shareFlow exists', function(){ if (typeof shareFlow !== 'function') throw new Error('shareFlow missing'); });
     test('shareOrDownloadThenIG exists', function(){ if (typeof shareOrDownloadThenIG !== 'function') throw new Error('shareOrDownloadThenIG missing'); });
 
-    // Test 7: button label reflects Share/Save
-    test('shareBtn label updated', function(){ if (!/Share \/ Save to Photos/i.test(shareBtn.textContent)) throw new Error('Button label not updated'); });
+    // Test 7: shareBtn has aria-label
+    test('shareBtn has aria-label', function(){
+      if (!shareBtn.getAttribute('aria-label')) throw new Error('shareBtn missing aria-label');
+    });
 
     // Test 8: Preloader basic API exists
     test('Preloader API exists', function(){ if (!Preloader || typeof Preloader.warm !== 'function' || typeof Preloader.urlFor !== 'function') throw new Error('Preloader missing'); });
+
+    // Test 9: download button exists
+    test('downloadBtn exists', function(){ if (!downloadBtn) throw new Error('downloadBtn not found'); });
 
     var passed = tests.filter(function(t){return t[1];}).length;
     var failed = tests.length - passed;
