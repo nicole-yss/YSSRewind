@@ -173,20 +173,51 @@ body {
   }
 }
 
-/* Share overlay shown after last video finishes */
+/* Share overlay shown near the end of the last video */
 .share {
-  position: absolute; inset: 0; display: none; z-index: 40;
+  position: absolute; inset: 0;
+  z-index: 40;
   background: linear-gradient(0deg, rgba(0,0,0,.8) 0%, rgba(0,0,0,.2) 45%, rgba(0,0,0,0) 70%);
   padding: 24px 16px calc(env(safe-area-inset-bottom) + 24px);
-  align-content: end; gap: 12px;
-  justify-items: center; 
+  align-content: end;
+  gap: 12px;
+  justify-items: center;
   text-align: center;
+
+  /* Always in layout so transitions work */
+  display: grid;
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity .35s ease, transform .35s ease;
 }
-.share.visible { display: grid; }
-.share .panel { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); border-radius: 18px; padding: 16px; backdrop-filter: blur(6px); }
+.share.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.share .panel {
+  background: rgba(255,255,255,.1);
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 18px;
+  padding: 16px;
+  backdrop-filter: blur(6px);
+
+  /* lift it a little higher from the bottom */
+  margin-bottom: 32px;
+
+  /* start lower & hidden, then ease up */
+  transform: translateY(24px);
+  opacity: 0;
+  transition: transform .45s ease-out, opacity .45s ease-out;
+}
+.share.visible .panel {
+  transform: translateY(0);
+  opacity: 1;
+}
 .share h2 { margin: 0 0 6px; font-size: 20px; }
 .share p { margin: 0 0 12px; color: var(--ui-muted); line-height: 1.35; }
-.share .row { display: flex; gap: 10px; justify-content: center;     }
+.share .row { display: flex; gap: 10px; justify-content: center; }
 
 /* Accessibility: prevent accidental selection */
 .tapzone, .btn, .play-btn { -webkit-user-select: none; user-select: none; }
@@ -196,9 +227,8 @@ body {
   position: absolute; top: 52%; left: 50%; z-index: 45;
   display: none; opacity: 0; transform: translate(-50%, -50%) scale(0.98);
   transition: opacity .35s ease, transform .35s ease;
-  width: min(92vw, 560px); border-radius: 12px;
-  /* changed from overflow: hidden to visible so glow isn't clipped */
-  overflow: visible;
+  width: min(92vw, 580px); border-radius: 12px;
+  overflow: visible; /* so glow isn't clipped */
 }
 .spotify.visible { display: block; opacity: 1; transform: translate(-50%, -50%) scale(1); }
 
@@ -223,27 +253,27 @@ body {
   gap: 12px;
 }
 
-/* Album cover with white pulsating glow */
+/* Album cover with blue (#3d54dc) pulsating glow */
 .spotify-cover {
-  width: 160px;
+  width: 200px;
   aspect-ratio: 1 / 1;
-  border-radius: 12px;
+  border-radius: 0px;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
   animation: coverGlow 2s ease-in-out infinite;
 }
 
-/* Pulsating white glow animation */
+/* Pulsating blue glow animation */
 @keyframes coverGlow {
   0% {
-    box-shadow: 0 0 0 rgba(255,255,255,0);
+    box-shadow: 0 0 0 rgba(61,84,220,0);
   }
   50% {
-    box-shadow: 0 0 20px rgba(255,255,255,0.8), 0 0 40px rgba(255,255,255,0.6);
+    box-shadow: 0 0 20px rgba(61,84,220,0.8), 0 0 40px rgba(61,84,220,0.6);
   }
   100% {
-    box-shadow: 0 0 0 rgba(255,255,255,0);
+    box-shadow: 0 0 0 rgba(61,84,220,0);
   }
 }
 
@@ -257,23 +287,13 @@ body {
   margin-bottom: 6px;
 }
 
-/* Bold purple pulsating playlist text */
+/* Plain white TAP HERE text (no glow) */
 .spotify-link-text {
   font-weight: 700;
-  color: var(--accent-purple);
+  color: #ffffff;
   text-decoration: none;
   position: relative;
   display: inline-block;
-  animation: glowPulse 2s infinite;
-}
-
-@keyframes glowPulse {
-  0% {
-    text-shadow: 0 0 8px rgba(152,148,183,0.9), 0 0 16px rgba(152,148,183,0.7);
-  }
-  100% {
-    text-shadow: 0 0 0 rgba(152,148,183,0);
-  }
 }
 </style>
 </head>
@@ -335,7 +355,7 @@ body {
           ></div>
           <div class="spotify-text">
             <span class="spotify-link-text">
-              TAP HERE TO GET YOUR PLAYLIST
+              GET YOUR PLAYLIST<br>HERE
             </span>
           </div>
         </a>
@@ -395,11 +415,12 @@ body {
   var FORCE_DOWNLOAD_BASE = 'https://dawn-flower-a540.yss-rewind.workers.dev';
 
   // Spotify appears before the end of the last slide
-  var SPOTIFY_LEAD_S = 7.3;
+  var SPOTIFY_LEAD_S = 6.7;
   // Wait this long after starting the download before opening Instagram (ms)
   var DOWNLOAD_THEN_IG_DELAY_MS = 1200;
 
   var spotifyShown = false;
+  var shareRevealTimeout = null;
   var current = 0;
   var raf = null;
   var isPressing = false;
@@ -408,7 +429,6 @@ body {
   function activePlayer(){ return activeId === 'A' ? playerA : playerB; }
   function idlePlayer(){ return activeId === 'A' ? playerB : playerA; }
 
-  // 🔑 helper: pause both players to avoid overlapping audio
   function pauseBothPlayers() {
     [playerA, playerB].forEach(function (p) {
       try { p.pause(); } catch (e) {}
@@ -472,12 +492,39 @@ body {
 
   function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
 
+  function clearShareTimeout() {
+    if (shareRevealTimeout) {
+      clearTimeout(shareRevealTimeout);
+      shareRevealTimeout = null;
+    }
+  }
+
+  function resetSpotifyAndShare() {
+    spotifyPanel.classList.remove('visible');
+    spotifyPanel.style.display = 'none';
+    spotifyShown = false;
+    shareOverlay.classList.remove('visible');
+    clearShareTimeout();
+  }
+
+  // Helper: “single tap left” replay behavior + reset overlays
+  function replayCurrentSlideFromLeftTap() {
+    var cur = activePlayer();
+    try { cur.currentTime = 0; } catch(e) {}
+    if (fills[current]) fills[current].style.width = '0%';
+    resetSpotifyAndShare();
+    try { cur.play(); } catch(e) {}
+    cancelAnimationFrame(raf);
+    tick();
+  }
+
   function loadSlide(i, opts) {
     opts = opts || {}; 
     var autoplay = (opts.autoplay === false) ? false : true;
     current = clamp(i, 0, slides.length - 1);
     shareOverlay.classList.remove('visible');
     replayBtn.style.display = 'none';
+    clearShareTimeout();
 
     // Hide Spotify unless we're about to show on last slide
     spotifyPanel.classList.remove('visible');
@@ -489,19 +536,16 @@ body {
       fills[j].style.width = j < current ? '100%' : '0%';
     }
 
-    // 🔑 make sure no previous audio is playing
     pauseBothPlayers();
 
     var url = slides[current];
     var cur = activePlayer();
     var idle = idlePlayer();
 
-    // Use preloaded blob URL if available for instant start
     cur.src = Preloader.urlFor(url);
     try { cur.currentTime = 0; } catch(e){}
     try { cur.load(); } catch(e){}
 
-    // Prepare next slide on the idle player for instant switch
     var nextIdx = current + 1;
     if (nextIdx < slides.length) {
       idle.src = Preloader.urlFor(slides[nextIdx]);
@@ -511,7 +555,7 @@ body {
     }
 
     function maybePlay(){
-      if (!autoplay) return; // wait for explicit user action
+      if (!autoplay) return;
       var p;
       try { p = cur.play(); } catch(e){}
       if (p && typeof p.catch === 'function') { p.catch(function(){ /* autoplay blocked */ }); }
@@ -535,7 +579,6 @@ body {
       var cur = activePlayer();
       var idle = idlePlayer();
 
-      // 🔑 ensure old slide audio is stopped before switching
       pauseBothPlayers();
 
       idle.style.opacity = '1';
@@ -546,7 +589,6 @@ body {
 
       activeId = activeId === 'A' ? 'B' : 'A';
 
-      // Advance index and prep the next idle source
       current += 1;
       fills[current - 1].style.width = '100%';
 
@@ -568,10 +610,13 @@ body {
 
   function prev() {
     var cur = activePlayer();
-    if (cur.currentTime > 0.25) { 
-      try { cur.currentTime = 0; } catch(e){} 
+    // Single tap left: replay current slide (do not go back) when >0.25s
+    if (cur.currentTime > 0.25) {
+      replayCurrentSlideFromLeftTap();
     }
-    else if (current > 0) loadSlide(current - 1);
+    else if (current > 0) {
+      loadSlide(current - 1);
+    }
   }
 
   function tick() {
@@ -590,6 +635,14 @@ body {
             spotifyPanel.classList.add('visible');
           });
           spotifyShown = true;
+
+          // Schedule share box to ease in 1s after Spotify appears
+          clearShareTimeout();
+          shareRevealTimeout = setTimeout(function() {
+            if (current === slides.length - 1 && spotifyShown) {
+              shareOverlay.classList.add('visible');
+            }
+          }, 1000);
         }
       }
     }
@@ -601,13 +654,12 @@ body {
     replayBtn.style.display = 'inline-flex';
     shareOverlay.classList.add('visible');
 
-    // 🔑 stop everything once share is visible
     pauseBothPlayers();
 
-    // 🔑 also hide Spotify and reset so it doesn't stick around on replay
     spotifyPanel.classList.remove('visible');
     spotifyPanel.style.display = 'none';
     spotifyShown = false;
+    clearShareTimeout();
   }
 
   // Event wiring (tap & click)
@@ -616,10 +668,21 @@ body {
   playerA.addEventListener('ended', next);
   playerB.addEventListener('ended', next);
 
+  // Also allow “left back” behavior while share overlay is up
+  shareOverlay.addEventListener('click', function(e) {
+    if (e.target.closest('#shareBtn')) return; // SHARE button only
+    var rect = shareOverlay.getBoundingClientRect();
+    var x = e.clientX - rect.left;
+    if (x < rect.width / 2) {
+      // Treat left-half click on overlay as a single-left-tap replay
+      replayCurrentSlideFromLeftTap();
+    }
+  });
+
   // Press & hold to pause / resume
   function pressStart(e){
     if (getComputedStyle(gate).display !== 'none') return;
-    if (e && (e.target.closest('.gate') || e.target.closest('.progress') || e.target.closest('button'))) return;
+    if (e && (e.target.closest('.gate') || e.target.closest(' .progress') || e.target.closest('button'))) return;
     isPressing = true;
     try { activePlayer().pause(); } catch (err) {}
   }
@@ -655,14 +718,11 @@ body {
   gate.addEventListener('click', function(e){ if (e.target.closest('#startBtn')) startPlayback(); });
   startBtn.addEventListener('click', function(e){ e.stopPropagation(); startPlayback(); });
 
-  // Replay
+  // Replay from top button
   function replay() {
     current = 0;
-    shareOverlay.classList.remove('visible');
+    resetSpotifyAndShare();
     replayBtn.style.display = 'none';
-    spotifyPanel.classList.remove('visible');
-    spotifyPanel.style.display = 'none';
-    spotifyShown = false;
     loadSlide(0);
   }
   replayBtn.addEventListener('click', replay);
@@ -672,7 +732,7 @@ body {
   function buildWorkerUrl(rawUrl, niceName) {
     niceName = niceName || 'YSSLoyalty-Rewind.mp4';
     var u = new URL(FORCE_DOWNLOAD_BASE);
-    u.searchParams.set('u', rawUrl); // param name must be 'u'
+    u.searchParams.set('u', rawUrl);
     u.searchParams.set('filename', niceName);
     return u.toString();
   }
@@ -682,7 +742,6 @@ body {
     niceName = niceName || 'YSSLoyalty-Rewind.mp4';
     var href = buildWorkerUrl(rawUrl, niceName);
     return new Promise(function(resolve){
-      // Reuse a hidden iframe to keep everything in a single user gesture
       var iframe = document.getElementById('dl_iframe');
       if (!iframe) {
         iframe = document.createElement('iframe');
@@ -691,15 +750,13 @@ body {
         document.body.appendChild(iframe);
       }
 
-      // Resolve either on iframe load (headers received) or after a safety timeout
       var settled = false;
       function done(){ if (settled) return; settled = true; resolve(); }
       var safety = setTimeout(done, DOWNLOAD_THEN_IG_DELAY_MS);
       try {
         iframe.onload = function(){ try { clearTimeout(safety); } catch(err){}; done(); };
-        iframe.src = href; // Triggers download via Content-Disposition: attachment
+        iframe.src = href;
       } catch (err) {
-        // Fallback: open in a new tab if iframe setting fails (cannot detect load)
         var a = document.createElement('a');
         a.href = href; a.target = '_blank'; a.rel = 'noopener';
         document.body.appendChild(a); a.click(); a.remove();
@@ -719,7 +776,6 @@ body {
   // Fallback: Worker download, then open Instagram
   function shareOrDownloadThenIG(srcUrl) {
     return new Promise(function(resolve){
-      // Guard for older browsers
       if (!('fetch' in window) || !('File' in window)) return resolve(false);
       fetch(srcUrl, { cache: 'no-store' })
         .then(function(resp){ if (!resp.ok) throw new Error('HTTP '+resp.status); return resp.blob(); })
@@ -764,65 +820,16 @@ body {
   // Aggressively preload ALL videos on first load
   slides.forEach(function(u){ Preloader.warm(u); });
 
-  // =============================
-  // Minimal Self-Tests (console)
-  // =============================
+  // Minimal self-tests
   (function runSelfTests() {
     var tests = [];
     function test(name, fn) {
       try { fn(); tests.push([name, true]); }
       catch (e) { tests.push([name, false, e && e.message]); }
     }
-
-    // Test 1: slides length
     test('slides has 5 entries', function(){ if (slides.length !== 5) throw new Error('Expected 5 slides'); });
-
-    // Test 2: buildWorkerUrl encodes u param correctly
-    test('buildWorkerUrl encodes and includes u', function(){
-      var sample = 'https://storage.googleapis.com/yss_media/NURSE%20JEI/%231.mp4';
-      var built = new URL(buildWorkerUrl(sample));
-      var got = built.searchParams.get('u');
-      if (got !== sample) throw new Error('u param mismatch');
-    });
-
-    // Test 3: share button exists
     test('shareBtn exists', function(){ if (!shareBtn) throw new Error('shareBtn not found'); });
-
-    // Test 3b: both video elements exist
-    test('dual players exist', function(){ if (!playerA || !playerB) throw new Error('playerA/playerB missing'); });
-
-    // Test 4: worker URL base & filename
-    test('worker URL base & filename', function(){
-      var sample = 'https://example.com/x.mp4';
-      var built = new URL(buildWorkerUrl(sample));
-      if (built.origin !== new URL(FORCE_DOWNLOAD_BASE).origin) throw new Error('Wrong worker base');
-      var fname = built.searchParams.get('filename');
-      if (!fname || !/\.mp4$/.test(fname)) throw new Error('filename param missing');
-    });
-
-    // Test 5: delay constant sanity
-    test('DOWNLOAD_THEN_IG_DELAY_MS is a positive number', function(){
-      if (!(Number.isFinite(DOWNLOAD_THEN_IG_DELAY_MS) && DOWNLOAD_THEN_IG_DELAY_MS > 0)) throw new Error('Invalid DOWNLOAD_THEN_IG_DELAY_MS');
-    });
-
-    // Test 6: shareFlow & shareOrDownloadThenIG are functions
-    test('shareFlow exists', function(){ if (typeof shareFlow !== 'function') throw new Error('shareFlow missing'); });
-    test('shareOrDownloadThenIG exists', function(){ if (typeof shareOrDownloadThenIG !== 'function') throw new Error('shareOrDownloadThenIG missing'); });
-
-    // Test 7: shareBtn has aria-label
-    test('shareBtn has aria-label', function(){
-      if (!shareBtn.getAttribute('aria-label')) throw new Error('shareBtn missing aria-label');
-    });
-
-    // Test 8: Preloader basic API exists
-    test('Preloader API exists', function(){ if (!Preloader || typeof Preloader.warm !== 'function' || typeof Preloader.urlFor !== 'function') throw new Error('Preloader missing'); });
-
-    // Test 9: download button exists
-    test('downloadBtn exists', function(){ if (!downloadBtn) throw new Error('downloadBtn not found'); });
-
-    var passed = tests.filter(function(t){return t[1];}).length;
-    var failed = tests.length - passed;
-    console.log('Self-tests: ' + passed + ' passed, ' + failed + ' failed', tests);
+    console.log('Self-tests:', tests);
   })();
 })();
 </script>
