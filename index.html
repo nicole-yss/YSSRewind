@@ -255,7 +255,7 @@ body {
 
 /* Album cover with blue (#3d54dc) pulsating glow */
 .spotify-cover {
-  width: 200px;
+  width: 190px;
   aspect-ratio: 1 / 1;
   border-radius: 0px;
   background-size: cover;
@@ -499,12 +499,21 @@ body {
     }
   }
 
+  // 🔁 Updated helper to fully reset last-slide UI
   function resetSpotifyAndShare() {
+    // Hide Spotify card
     spotifyPanel.classList.remove('visible');
     spotifyPanel.style.display = 'none';
     spotifyShown = false;
+
+    // Hide share box
     shareOverlay.classList.remove('visible');
     clearShareTimeout();
+
+    // Hide Replay button
+    if (replayBtn) {
+      replayBtn.style.display = 'none';
+    }
   }
 
   // Helper: “single tap left” replay behavior + reset overlays
@@ -512,7 +521,10 @@ body {
     var cur = activePlayer();
     try { cur.currentTime = 0; } catch(e) {}
     if (fills[current]) fills[current].style.width = '0%';
+
+    // Now hides Spotify, share box, and Replay
     resetSpotifyAndShare();
+
     try { cur.play(); } catch(e) {}
     cancelAnimationFrame(raf);
     tick();
@@ -522,6 +534,8 @@ body {
     opts = opts || {}; 
     var autoplay = (opts.autoplay === false) ? false : true;
     current = clamp(i, 0, slides.length - 1);
+
+    // When navigating, ensure end-of-story UI is hidden
     shareOverlay.classList.remove('visible');
     replayBtn.style.display = 'none';
     clearShareTimeout();
