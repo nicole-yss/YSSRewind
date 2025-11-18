@@ -60,6 +60,7 @@ body {
 .btn {
   appearance: none; border: none; border-radius: 18px; padding: 10px 12px;
   font-weight: 600; color: #111; background: #fff; box-shadow: var(--shadow); cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 .btn.secondary { background: rgba(255,255,255,.15); color: #fff; backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,.25); }
 .btn.inline { padding: 10px 12px; border-radius: 12px; font-weight: 600; }
@@ -73,12 +74,34 @@ body {
   justify-content: center;
   background: rgba(0,0,0,0.35);
   border: 1px solid rgba(255,255,255,0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 .icon-btn img {
   width: 18px;
   height: 18px;
   display: block;
   filter: invert(1) brightness(2); /* make icon white */
+}
+
+/* click pulse animation shared by icon + regular buttons */
+.icon-btn.pulse,
+.btn.pulse {
+  animation: iconPulse 280ms ease-out;
+}
+
+@keyframes iconPulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(255,255,255,0);
+  }
+  40% {
+    transform: scale(0.88);
+    box-shadow: 0 0 14px rgba(255,255,255,0.45);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(255,255,255,0);
+  }
 }
 
 /* Gate overlay */
@@ -324,7 +347,7 @@ body {
           aria-label="Download this slide video"
         >
           <img
-            src="https://storage.googleapis.com/yss_media/share.png"
+            src="https://storage.googleapis.com/yss_media/download%20(3).png"
             alt="Download"
           />
         </button>
@@ -369,25 +392,20 @@ body {
       <button class="play-btn" id="startBtn" aria-label="Play"></button>
     </div>
 
-    <!-- Share overlay -->
     <div class="share" id="share">
       <div class="panel">
-        <h2>Or download and share to IG stories</h2>
-        <p>Share your Hair Club 2025 winning moments!</p>
+        <p>Or download and share to IG!</p>
+        <ul style="font-size: 10px;margin: 0 0 16px; padding-left: 20px; line-height: 1.45; color: var(--ui-muted);">
+          <li>Tap the button below to download your video.</li>
+          <li>Go to your Downloads, tap Share → “Save to Photos”.</li>
+          <li>Open Instagram Stories and upload from your camera roll.</li>
+        </ul>
         <div class="row">
-          <button
-            class="btn inline pill"
-            id="shareBtn"
-            aria-label="Share to Instagram Stories"
-            style="justify-self:center;"
-          >
-            SHARE
-          </button>
+          <button class="btn" id="shareBtn">SHARE</button>
         </div>
       </div>
     </div>
-  </div>
-</div>
+
 
 <script>
 (function() {
@@ -739,6 +757,7 @@ body {
     current = 0;
     resetSpotifyAndShare();
     replayBtn.style.display = 'none';
+    animateButton(replayBtn);
     loadSlide(0);
   }
   replayBtn.addEventListener('click', replay);
@@ -818,13 +837,24 @@ body {
   // --- Unified Share Flow ---
   function shareFlow() {
     var src = activePlayer().currentSrc || slides[current];
+    animateButton(shareBtn);
     shareOrDownloadThenIG(src);
+  }
+
+  // ⭐ Generic click animation helper (used by all CTA-style buttons)
+  function animateButton(el) {
+    if (!el) return;
+    el.classList.remove('pulse');
+    // Force a reflow so the browser restarts the animation
+    void el.offsetWidth;
+    el.classList.add('pulse');
   }
 
   // Wire the buttons
   shareBtn.addEventListener('click', shareFlow);
   downloadBtn.addEventListener('click', function(e) {
     e.stopPropagation();
+    animateButton(downloadBtn);
     downloadCurrentSlide();
   });
 
