@@ -1,0 +1,941 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>YSSLoyalty Rewind</title>
+<meta name="theme-color" content="#000000" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="icon" type="image/png" href="https://storage.googleapis.com/yss_media/YSSLoyaltyV2%20JPG%2003.png">
+
+<style>
+:root {
+  --bar-bg: rgba(255,255,255,0.25);
+  --bar-fg: white;
+  --ui-fg: white;
+  --ui-muted: rgba(255,255,255,0.75);
+  --shadow: 0 8px 30px rgba(0,0,0,.35);
+  --accent-purple: #9894b7;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: #000; color: var(--ui-fg);
+  font-family: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  overflow: hidden;
+}
+/* Fullscreen black canvas */
+.root { position: relative; width: 100vw; height: 100dvh; background: #000; display: grid; place-items: center; }
+/* 9:16 stage centered on all screens (letterboxed on desktop) */
+.stage {
+  position: relative; height: 100dvh; aspect-ratio: 9 / 16; max-height: 100dvh; max-width: 100vw; width: auto;
+  background: #000; overflow: hidden; border-radius: 0;
+}
+/* Top progress bars (inside stage) */
+.progress {
+  position: absolute; top: 8px; left: 8px; right: 8px;
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px;
+  z-index: 20; pointer-events: auto;
+}
+.progress .track { height: 3px; background: var(--bar-bg); border-radius: 999px; overflow: hidden; cursor: pointer; }
+.progress .fill { width: 0%; height: 100%; background: var(--bar-fg); transform-origin: left center; transition: width 100ms linear; }
+/* Video fills the 9:16 stage (dual players for seamless switch) */
+.stage video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; transition: opacity 80ms linear; }
+/* Tap zones */
+.tapzone { position: absolute; top: 0; bottom: 0; width: 50%; z-index: 15; }
+.left { left: 0; } .right { right: 0; }
+/* Optional subtle gradient hints on edges */
+.edge-hint { position:absolute; top:0; bottom:0; width:0%; z-index: 10; pointer-events:none; }
+.edge-left { left:0; background: linear-gradient(90deg, rgba(0,0,0,.35), rgba(0,0,0,0)); }
+.edge-right { right:0; background: linear-gradient(270deg, rgba(0,0,0,.35), rgba(0,0,0,0)); }
+/* Top UI inside stage */
+.top-ui {
+  position: absolute; left: 12px; right: 12px; top: 18px;
+  display: flex; align-items: center; justify-content: space-between;
+  z-index: 25; pointer-events: none;
+}
+.pill { pointer-events: auto; opacity: .9; }
+.btn {
+  appearance: none; border: none; border-radius: 18px; padding: 10px 12px;
+  font-weight: 600; color: #111; background: #fff; box-shadow: var(--shadow); cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.btn.secondary { background: rgba(255,255,255,.15); color: #fff; backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,.25); }
+.btn.inline { padding: 10px 12px; border-radius: 12px; font-weight: 600; }
+
+/* Icon-only button (share/download) */
+.icon-btn {
+  padding: 8px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.icon-btn img {
+  width: 18px;
+  height: 18px;
+  display: block;
+  filter: invert(1) brightness(2); /* make icon white */
+}
+
+/* click pulse animation shared by icon + regular buttons */
+.icon-btn.pulse,
+.btn.pulse {
+  animation: iconPulse 280ms ease-out;
+}
+
+@keyframes iconPulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(255,255,255,0);
+  }
+  40% {
+    transform: scale(0.88);
+    box-shadow: 0 0 14px rgba(255,255,255,0.45);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(255,255,255,0);
+  }
+}
+
+/* Gate overlay */
+.gate {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  background: rgba(0,0,0,.6); z-index: 30; padding: 24px; text-align: center;
+}
+
+/* New animated PLAY button */
+.play-btn {
+  width: 100px;
+  height: 100px;
+  background: radial-gradient(rgba(195, 181, 255, 0.8) 60%, rgba(255, 255, 255, 1) 62%);
+  border-radius: 50%;
+  position: relative;
+  display: block;
+  box-shadow: 0px 0px 25px 3px rgba(195, 181, 255, 0.8);
+  border: none;
+  cursor: pointer;
+}
+
+/* triangle */
+.play-btn::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  -webkit-transform: translateX(-40%) translateY(-50%);
+  transform: translateX(-40%) translateY(-50%);
+  transform-origin: center center;
+  width: 0;
+  height: 0;
+  border-top: 15px solid transparent;
+  border-bottom: 15px solid transparent;
+  border-left: 25px solid #fff;
+  z-index: 100;
+  -webkit-transition: all 400ms cubic-bezier(0.55, 0.055, 0.675, 0.19);
+  transition: all 400ms cubic-bezier(0.55, 0.055, 0.675, 0.19);
+}
+
+/* pulse wave */
+.play-btn:before {
+  content: "";
+  position: absolute;
+  width: 150%;
+  height: 150%;
+  -webkit-animation-delay: 0s;
+  animation-delay: 0s;
+  -webkit-animation: pulsate1 2s;
+  animation: pulsate1 2s;
+  -webkit-animation-direction: forwards;
+  animation-direction: forwards;
+  -webkit-animation-iteration-count: infinite;
+  animation-iteration-count: infinite;
+  -webkit-animation-timing-function: steps;
+  animation-timing-function: steps;
+  opacity: 1;
+  border-radius: 50%;
+  border: 5px solid rgba(255, 255, 255, .75);
+  top: -30%;
+  left: -30%;
+  background: rgba(152, 148, 183, 0);
+}
+
+@-webkit-keyframes pulsate1 {
+  0% {
+    -webkit-transform: scale(0.6);
+    transform: scale(0.6);
+    opacity: 1;
+    box-shadow: inset 0px 0px 25px 3px rgba(255, 255, 255, 0.75),
+      0px 0px 25px 10px rgba(255, 255, 255, 0.75);
+  }
+  100% {
+    -webkit-transform: scale(1);
+    transform: scale(1);
+    opacity: 0;
+    box-shadow: none;
+  }
+}
+
+@keyframes pulsate1 {
+  0% {
+    -webkit-transform: scale(0.6);
+    transform: scale(0.6);
+    opacity: 1;
+    box-shadow: inset 0px 0px 25px 3px rgba(255, 255, 255, 0.75),
+      0px 0px 25px 10px rgba(255, 255, 255, 0.75);
+  }
+  100% {
+    -webkit-transform: scale(1);
+    transform: scale(1);
+    opacity: 0;
+    box-shadow: none;
+  }
+}
+
+/* Share overlay shown near the end of the last video */
+.share {
+  position: absolute; inset: 0;
+  z-index: 40;
+  background: linear-gradient(0deg, rgba(0,0,0,.8) 0%, rgba(0,0,0,.2) 45%, rgba(0,0,0,0) 70%);
+  padding: 24px 16px calc(env(safe-area-inset-bottom) + 24px);
+  align-content: end;
+  gap: 12px;
+  justify-items: center;
+  text-align: center;
+
+  /* Always in layout so transitions work */
+  display: grid;
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity .35s ease, transform .35s ease;
+}
+.share.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.share .panel {
+  background: rgba(255,255,255,.1);
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 18px;
+  padding: 16px;
+  backdrop-filter: blur(6px);
+
+  /* lift it a little higher from the bottom */
+  margin-bottom: 32px;
+
+  /* start lower & hidden, then ease up */
+  transform: translateY(24px);
+  opacity: 0;
+  transition: transform .45s ease-out, opacity .45s ease-out;
+}
+.share.visible .panel {
+  transform: translateY(0);
+  opacity: 1;
+}
+.share h2 { margin: 0 0 6px; font-size: 20px; }
+.share p { margin: 0 0 12px; color: var(--ui-muted); line-height: 1.35; }
+.share .row { display: flex; gap: 10px; justify-content: center; }
+
+/* Accessibility: prevent accidental selection */
+.tapzone, .btn, .play-btn { -webkit-user-select: none; user-select: none; }
+
+/* Spotify playlist panel */
+.spotify {
+  position: absolute; top: 52%; left: 50%; z-index: 45;
+  display: none; opacity: 0; transform: translate(-50%, -50%) scale(0.98);
+  transition: opacity .35s ease, transform .35s ease;
+  width: min(92vw, 580px); border-radius: 12px;
+  overflow: visible; /* so glow isn't clipped */
+}
+.spotify.visible { display: block; opacity: 1; transform: translate(-50%, -50%) scale(1); }
+
+/* No black background behind album cover */
+.spotify-card {
+  background: transparent;
+  border-radius: 16px;
+  padding: 0;
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Make the whole card clickable */
+.spotify-link {
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+/* UPDATED: Spotify cover with square pulsating ring + appear animation */
+.spotify-cover {
+  width: 190px;
+  aspect-ratio: 1 / 1;
+  border-radius: 0px;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+
+  position: relative;
+  opacity: 0;
+  transform: scale(0.9);
+  box-shadow: none;
+}
+
+/* Light-blue pulsating square ring */
+.spotify-cover::before {
+  content: "";
+  position: absolute;
+  top: -18px;
+  left: -18px;
+  right: -18px;
+  bottom: -18px;
+  border-radius: 0; /* square */
+  border: 4px solid rgba(120, 170, 255, 0.9); /* light blue */
+  opacity: 0;
+  transform: scale(0.7);
+  pointer-events: none;
+}
+
+/* When panel is visible, fade & scale cover in, and start ring pulse */
+.spotify.visible .spotify-cover {
+  opacity: 1;
+  transform: scale(1);
+  box-shadow: 0 0 20px rgba(120, 170, 255, 0.65);
+  animation: spotifyAppear 420ms cubic-bezier(0.19, 1, 0.22, 1) forwards;
+}
+
+.spotify.visible .spotify-cover::before {
+  animation: squarePulse 2s ease-out infinite;
+}
+
+/* Pop-in ease animation for the cover itself */
+@keyframes spotifyAppear {
+  0% {
+    opacity: 0;
+    transform: scale(0.9) translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Square pulse similar to play button ring but blue + square */
+@keyframes squarePulse {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.7);
+    box-shadow:
+      0 0 0 rgba(120, 170, 255, 0.0),
+      0 0 0 rgba(120, 170, 255, 0.0);
+  }
+  40% {
+    opacity: 0.6;
+    transform: scale(1);
+    box-shadow:
+      0 0 30px rgba(120, 170, 255, 0.7),
+      0 0 60px rgba(120, 170, 255, 0.5);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+    box-shadow:
+      0 0 0 rgba(120, 170, 255, 0.0),
+      0 0 0 rgba(120, 170, 255, 0.0);
+  }
+}
+
+.spotify-text {
+  text-align: center;
+}
+
+.spotify-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+/* Plain white TAP HERE text (no glow) */
+.spotify-link-text {
+  font-weight: 700;
+  color: #ffffff;
+  text-decoration: none;
+  position: relative;
+  display: inline-block;
+}
+</style>
+</head>
+<body>
+<div class="root">
+  <!-- 9:16 stage -->
+  <div class="stage" id="stage">
+    <!-- Progress bars -->
+    <div class="progress" id="progress"></div>
+
+    <!-- Top UI: logo/title + Download + Replay -->
+    <div class="top-ui">
+      <div style="display:flex; align-items:center; gap:8px; opacity:.9">
+        <img
+          src="https://storage.googleapis.com/yss_media/YSSLoyaltyV2%20JPG%2003.png"
+          alt="YSSLoyalty Rewind"
+          style="width:28px;height:28px;border-radius:999px;object-fit:cover;display:block;"
+        />
+        <div style="font-weight:700">YSSLoyalty Rewind</div>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center;" class="actions">
+        <!-- Download icon button for current slide (clickable on every slide) -->
+        <button
+          id="downloadBtn"
+          class="icon-btn pill"
+          aria-label="Download this slide video"
+        >
+          <img
+            src="https://storage.googleapis.com/yss_media/download%20(3).png"
+            alt="Download"
+          />
+        </button>
+        <button id="replayBtn" class="btn inline pill" style="display:none">Replay</button>
+      </div>
+    </div>
+
+    <!-- Video players (A/B) for seamless switching -->
+    <video id="playerA" playsinline preload="auto" style="opacity:1;"></video>
+    <video id="playerB" playsinline preload="auto" style="opacity:0; pointer-events:none;"></video>
+
+    <!-- Tap zones (left/right) -->
+    <div class="tapzone left" id="tapLeft" aria-label="Previous story" role="button"></div>
+    <div class="tapzone right" id="tapRight" aria-label="Next story" role="button"></div>
+    <div class="edge-hint edge-left"></div>
+    <div class="edge-hint edge-right"></div>
+
+    <!-- Spotify playlist card (appears near the end of the last slide) -->
+    <div class="spotify" id="spotifyPanel">
+      <div class="spotify-card">
+        <a
+          href="https://open.spotify.com/playlist/7GcCM7FWzvBeobNn0hJjss?si=uYN0DxwRRTmBGOHygRJM8g"
+          target="_blank"
+          rel="noopener"
+          class="spotify-link"
+        >
+          <div
+            class="spotify-cover"
+            style="background-image:url('https://storage.googleapis.com/yss_media/YSS%20Logo%20V2%201.png');"
+          ></div>
+          <div class="spotify-text">
+            <span class="spotify-link-text">
+              GET YOUR PLAYLIST<br>HERE
+            </span>
+          </div>
+        </a>
+      </div>
+    </div>
+
+    <!-- Minimal Autoplay gate with new PLAY button -->
+    <div class="gate" id="gate" aria-label="Play">
+      <button class="play-btn" id="startBtn" aria-label="Play"></button>
+    </div>
+
+    <div class="share" id="share">
+      <div class="panel">
+        <p>Or download and share to IG!</p>
+        <ul style="font-size: 10px;margin: 0 0 16px; padding-left: 20px; line-height: 1.45; color: var(--ui-muted);">
+          <li>Tap the button below to download your video.</li>
+          <li>Go to your Downloads, tap Share → “Save to Photos”.</li>
+          <li>Open Instagram Stories and upload from your camera roll.</li>
+        </ul>
+        <div class="row">
+          <button class="btn" id="shareBtn">SHARE</button>
+        </div>
+      </div>
+    </div>
+
+
+<script>
+(function() {
+  // Five explicit clips (order matters)
+  var slides_folder = "The Salon Edit Loyalty Program
+";
+
+  var slideFiles = ["1.mp4", "2.mp4", "3.mp4", "4.mp4", "5.mp4"];
+
+  var slides = slideFiles.map(function(name) {
+    return "https://storage.googleapis.com/yss_media/" + slides_folder + "/" + name;
+  });
+
+  var stage = document.getElementById('stage');
+  var progressRoot = document.getElementById('progress');
+  var playerA = document.getElementById('playerA');
+  var playerB = document.getElementById('playerB');
+  var tapLeft = document.getElementById('tapLeft');
+  var tapRight = document.getElementById('tapRight');
+  var gate = document.getElementById('gate');
+  var startBtn = document.getElementById('startBtn');
+  var shareOverlay = document.getElementById('share');
+  var shareBtn = document.getElementById('shareBtn');
+  var replayBtn = document.getElementById('replayBtn');
+  var replayBtn2 = document.getElementById('replayBtn2'); // optional, guarded below
+  var spotifyPanel = document.getElementById('spotifyPanel');
+  var downloadBtn = document.getElementById('downloadBtn');
+
+  // === Force-download Worker base (your deployed URL) ===
+  var FORCE_DOWNLOAD_BASE = 'https://dawn-flower-a540.yss-rewind.workers.dev';
+
+  // Spotify appears before the end of the last slide
+  var SPOTIFY_LEAD_S = 6.7;
+  // Wait this long after starting the download before opening Instagram (ms)
+  var DOWNLOAD_THEN_IG_DELAY_MS = 1200;
+
+  var spotifyShown = false;
+  var shareRevealTimeout = null;
+  var current = 0;
+  var raf = null;
+  var isPressing = false;
+  var touchStartX = null;
+  var activeId = 'A'; // 'A' or 'B'
+  function activePlayer(){ return activeId === 'A' ? playerA : playerB; }
+  function idlePlayer(){ return activeId === 'A' ? playerB : playerA; }
+
+  function pauseBothPlayers() {
+    [playerA, playerB].forEach(function (p) {
+      try { p.pause(); } catch (e) {}
+    });
+  }
+
+  // -------------------------
+  // Aggressive video preloader (preload all clips)
+  // -------------------------
+  var Preloader = (function(){
+    var blobs = new Map();       // url -> { objectUrl, ts }
+    var inflight = new Map();    // url -> Promise
+
+    function fetchBlob(u){
+      if (inflight.has(u)) return inflight.get(u);
+      var p = fetch(u, { cache: 'force-cache', credentials: 'omit' })
+        .then(function(r){ if (!r.ok) throw new Error('HTTP '+r.status); return r.blob(); })
+        .then(function(b){
+          if (b.size === 0) throw new Error('Empty blob');
+          var obj = URL.createObjectURL(b);
+          blobs.set(u, { objectUrl: obj, ts: Date.now() });
+          return obj;
+        })
+        .catch(function(e){ console.warn('Preload failed for', u, e); throw e; })
+        .then(function(res){ inflight.delete(u); return res; });
+      inflight.set(u, p);
+      return p;
+    }
+
+    function urlFor(u){
+      var entry = blobs.get(u);
+      return entry ? entry.objectUrl : u;
+    }
+
+    function warm(u){
+      return fetchBlob(u).catch(function(){ return null; });
+    }
+
+    function evictAll(){
+      blobs.forEach(function(rec){ try { URL.revokeObjectURL(rec.objectUrl); } catch(e){} });
+      blobs.clear();
+    }
+
+    return { warm: warm, urlFor: urlFor, evictAll: evictAll };
+  })();
+
+  // Build progress bars
+  var fills = [];
+  for (var i = 0; i < slides.length; i++) {
+    var track = document.createElement('div');
+    track.className = 'track';
+    track.setAttribute('role', 'button');
+    track.setAttribute('aria-label', 'Jump to story ' + (i+1));
+    var fill = document.createElement('div');
+    fill.className = 'fill';
+    track.appendChild(fill);
+    progressRoot.appendChild(track);
+    fills.push(fill);
+    (function(idx){ track.addEventListener('click', function(){ loadSlide(idx); }); })(i);
+  }
+
+  function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+
+  function clearShareTimeout() {
+    if (shareRevealTimeout) {
+      clearTimeout(shareRevealTimeout);
+      shareRevealTimeout = null;
+    }
+  }
+
+  // 🔁 Updated helper to fully reset last-slide UI
+  function resetSpotifyAndShare() {
+    // Hide Spotify card
+    spotifyPanel.classList.remove('visible');
+    spotifyPanel.style.display = 'none';
+    spotifyShown = false;
+
+    // Hide share box
+    shareOverlay.classList.remove('visible');
+    clearShareTimeout();
+
+    // Hide Replay button
+    if (replayBtn) {
+      replayBtn.style.display = 'none';
+    }
+  }
+
+  // Helper: “single tap left” replay behavior + reset overlays
+  function replayCurrentSlideFromLeftTap() {
+    var cur = activePlayer();
+    try { cur.currentTime = 0; } catch(e) {}
+    if (fills[current]) fills[current].style.width = '0%';
+
+    // Now hides Spotify, share box, and Replay
+    resetSpotifyAndShare();
+
+    try { cur.play(); } catch(e) {}
+    cancelAnimationFrame(raf);
+    tick();
+  }
+
+  function loadSlide(i, opts) {
+    opts = opts || {}; 
+    var autoplay = (opts.autoplay === false) ? false : true;
+    current = clamp(i, 0, slides.length - 1);
+
+    // When navigating, ensure end-of-story UI is hidden
+    shareOverlay.classList.remove('visible');
+    replayBtn.style.display = 'none';
+    clearShareTimeout();
+
+    // Hide Spotify unless we're about to show on last slide
+    spotifyPanel.classList.remove('visible');
+    spotifyPanel.style.display = 'none';
+    spotifyShown = false;
+
+    // Reset progress bars up to current
+    for (var j = 0; j < slides.length; j++) {
+      fills[j].style.width = j < current ? '100%' : '0%';
+    }
+
+    pauseBothPlayers();
+
+    var url = slides[current];
+    var cur = activePlayer();
+    var idle = idlePlayer();
+
+    cur.src = Preloader.urlFor(url);
+    try { cur.currentTime = 0; } catch(e){}
+    try { cur.load(); } catch(e){}
+
+    var nextIdx = current + 1;
+    if (nextIdx < slides.length) {
+      idle.src = Preloader.urlFor(slides[nextIdx]);
+      try { idle.load(); idle.pause(); } catch(e){}
+    } else {
+      idle.removeAttribute('src');
+    }
+
+    function maybePlay(){
+      if (!autoplay) return;
+      var p;
+      try { p = cur.play(); } catch(e){}
+      if (p && typeof p.catch === 'function') { p.catch(function(){ /* autoplay blocked */ }); }
+    }
+
+    if (cur.readyState >= 2) {
+      maybePlay();
+    } else {
+      cur.addEventListener('loadedmetadata', function once(){
+        cur.removeEventListener('loadedmetadata', once);
+        maybePlay();
+      }, { once: true });
+    }
+
+    cancelAnimationFrame(raf);
+    tick();
+  }
+
+  function next() {
+    if (current < slides.length - 1) {
+      var cur = activePlayer();
+      var idle = idlePlayer();
+
+      pauseBothPlayers();
+
+      idle.style.opacity = '1';
+      cur.style.opacity = '0';
+
+      try { idle.currentTime = 0; } catch(e){}
+      try { idle.play(); } catch(e){}
+
+      activeId = activeId === 'A' ? 'B' : 'A';
+
+      current += 1;
+      fills[current - 1].style.width = '100%';
+
+      var newIdle = idlePlayer();
+      var nextIdx = current + 1;
+      if (nextIdx < slides.length) {
+        newIdle.src = Preloader.urlFor(slides[nextIdx]);
+        try { newIdle.load(); newIdle.pause(); } catch(e){}
+      } else {
+        newIdle.removeAttribute('src');
+      }
+
+      cancelAnimationFrame(raf);
+      tick();
+    } else {
+      showShare();
+    }
+  }
+
+  function prev() {
+    var cur = activePlayer();
+    // Single tap left: replay current slide (do not go back) when >0.25s
+    if (cur.currentTime > 0.25) {
+      replayCurrentSlideFromLeftTap();
+    }
+    else if (current > 0) {
+      loadSlide(current - 1);
+    }
+  }
+
+  function tick() {
+    var cur = activePlayer();
+    if (cur.duration > 0 && isFinite(cur.duration)) {
+      if (!cur.paused) {
+        var pct = (cur.currentTime / cur.duration) * 100;
+        fills[current].style.width = clamp(pct, 0, 100) + '%';
+      }
+      // Reveal playlist card during the end of the final slide
+      if (!spotifyShown && current === slides.length - 1) {
+        var remaining = cur.duration - cur.currentTime;
+        if (remaining <= SPOTIFY_LEAD_S) {
+          spotifyPanel.style.display = 'block';
+          requestAnimationFrame(function () {
+            spotifyPanel.classList.add('visible');
+          });
+          spotifyShown = true;
+
+          // Schedule share box to ease in 1s after Spotify appears
+          clearShareTimeout();
+          shareRevealTimeout = setTimeout(function() {
+            if (current === slides.length - 1 && spotifyShown) {
+              shareOverlay.classList.add('visible');
+            }
+          }, 1000);
+        }
+      }
+    }
+    raf = requestAnimationFrame(tick);
+  }
+
+  function showShare() {
+    for (var i2 = 0; i2 < fills.length; i2++) { fills[i2].style.width = '100%'; }
+    replayBtn.style.display = 'inline-flex';
+    shareOverlay.classList.add('visible');
+
+    pauseBothPlayers();
+
+    spotifyPanel.classList.remove('visible');
+    spotifyPanel.style.display = 'none';
+    spotifyShown = false;
+    clearShareTimeout();
+  }
+
+  // Event wiring (tap & click)
+  tapRight.addEventListener('click', next);
+  tapLeft.addEventListener('click', prev);
+  playerA.addEventListener('ended', next);
+  playerB.addEventListener('ended', next);
+
+  // Also allow “left back” behavior while share overlay is up
+  shareOverlay.addEventListener('click', function(e) {
+    if (e.target.closest('#shareBtn')) return; // SHARE button only
+    var rect = shareOverlay.getBoundingClientRect();
+    var x = e.clientX - rect.left;
+    if (x < rect.width / 2) {
+      // Treat left-half click on overlay as a single-left-tap replay
+      replayCurrentSlideFromLeftTap();
+    }
+  });
+
+  // Press & hold to pause / resume
+  function pressStart(e){
+    if (getComputedStyle(gate).display !== 'none') return;
+    if (e && (e.target.closest('.gate') || e.target.closest(' .progress') || e.target.closest('button'))) return;
+    isPressing = true;
+    try { activePlayer().pause(); } catch (err) {}
+  }
+  function pressEnd(){
+    if (!isPressing) return;
+    isPressing = false;
+    try { activePlayer().play(); } catch (err) {}
+  }
+  stage.addEventListener('pointerdown', pressStart);
+  stage.addEventListener('pointerup', pressEnd);
+  stage.addEventListener('pointercancel', pressEnd);
+  stage.addEventListener('pointerleave', pressEnd);
+
+  // Swipe navigation (touch)
+  stage.addEventListener('touchstart', function(e){ touchStartX = e.changedTouches[0].clientX; }, { passive: true });
+  stage.addEventListener('touchend', function(e){
+    if (touchStartX == null) return;
+    var dx = e.changedTouches[0].clientX - touchStartX;
+    touchStartX = null;
+    var THRESH = 40;
+    if (Math.abs(dx) > THRESH) { if (dx < 0) next(); else prev(); }
+  });
+
+  // Pause when tab goes background
+  document.addEventListener('visibilitychange', function(){ if (document.hidden) { try { activePlayer().pause(); } catch (e) {} } });
+
+  // Gate controls
+  function startPlayback() {
+    playerA.muted = false; playerB.muted = false;
+    gate.style.display = 'none';
+    loadSlide(current, { autoplay: true });
+  }
+  gate.addEventListener('click', function(e){ if (e.target.closest('#startBtn')) startPlayback(); });
+  startBtn.addEventListener('click', function(e){ e.stopPropagation(); startPlayback(); });
+
+  // Replay from top button
+  function replay() {
+    current = 0;
+    resetSpotifyAndShare();
+    replayBtn.style.display = 'none';
+    animateButton(replayBtn);
+    loadSlide(0);
+  }
+  replayBtn.addEventListener('click', replay);
+  if (replayBtn2) replayBtn2.addEventListener('click', replay);
+
+  // Build a Worker download URL for a given raw source URL + nice filename
+  function buildWorkerUrl(rawUrl, niceName) {
+    niceName = niceName || 'YSSLoyalty-Rewind.mp4';
+    var u = new URL(FORCE_DOWNLOAD_BASE);
+    u.searchParams.set('u', rawUrl);
+    u.searchParams.set('filename', niceName);
+    return u.toString();
+  }
+
+  // Trigger a real device download without navigating away (works better on iOS)
+  function workerDownload(rawUrl, niceName) {
+    niceName = niceName || 'YSSLoyalty-Rewind.mp4';
+    var href = buildWorkerUrl(rawUrl, niceName);
+    return new Promise(function(resolve){
+      var iframe = document.getElementById('dl_iframe');
+      if (!iframe) {
+        iframe = document.createElement('iframe');
+        iframe.id = 'dl_iframe';
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
+      }
+
+      var settled = false;
+      function done(){ if (settled) return; settled = true; resolve(); }
+      var safety = setTimeout(done, DOWNLOAD_THEN_IG_DELAY_MS);
+      try {
+        iframe.onload = function(){ try { clearTimeout(safety); } catch(err){}; done(); };
+        iframe.src = href;
+      } catch (err) {
+        var a = document.createElement('a');
+        a.href = href; a.target = '_blank'; a.rel = 'noopener';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(done, DOWNLOAD_THEN_IG_DELAY_MS);
+      }
+    });
+  }
+
+  // Download current slide video as its own file
+  function downloadCurrentSlide() {
+    var src = slides[current];
+    var niceName = 'YSSLoyalty-Rewind-slide-' + (current + 1) + '.mp4';
+    workerDownload(src, niceName);
+  }
+
+  // Try Share Sheet (files) first → user can pick "Save Video" (Photos) or Instagram
+  // Fallback: Worker download, then open Instagram
+  function shareOrDownloadThenIG(srcUrl) {
+    return new Promise(function(resolve){
+      if (!('fetch' in window) || !('File' in window)) return resolve(false);
+      fetch(srcUrl, { cache: 'no-store' })
+        .then(function(resp){ if (!resp.ok) throw new Error('HTTP '+resp.status); return resp.blob(); })
+        .then(function(blob){
+          var file = new File([blob], 'YSSLoyalty-Rewind.mp4', { type: 'video/mp4' });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            return navigator.share({ files: [file], title: 'YSSLoyalty Rewind' }).then(function(){ resolve(true); });
+          }
+          resolve(false);
+        })
+        .catch(function(){ resolve(false); });
+    }).then(function(shared){
+      if (shared) return;
+      return workerDownload(srcUrl, 'YSSLoyalty-Rewind.mp4').then(function(){ 
+        var deeplink = 'instagram://story-camera';
+        var fallback = 'https://www.instagram.com/';
+        var start = Date.now();
+        window.location.href = deeplink;
+        setTimeout(function(){ if (Date.now() - start < 2500) window.location.href = fallback; }, 1500);
+      });
+    });
+  }
+
+  // --- Unified Share Flow ---
+  function shareFlow() {
+    var src = activePlayer().currentSrc || slides[current];
+    animateButton(shareBtn);
+    shareOrDownloadThenIG(src);
+  }
+
+  // ⭐ Generic click animation helper (used by all CTA-style buttons)
+  function animateButton(el) {
+    if (!el) return;
+    el.classList.remove('pulse');
+    // Force a reflow so the browser restarts the animation
+    void el.offsetWidth;
+    el.classList.add('pulse');
+  }
+
+  // Wire the buttons
+  shareBtn.addEventListener('click', shareFlow);
+  downloadBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    animateButton(downloadBtn);
+    downloadCurrentSlide();
+  });
+
+  // Initial state
+  playerA.style.opacity = '1';
+  playerB.style.opacity = '0';
+  loadSlide(0, { autoplay: false });
+
+  // Aggressively preload ALL videos on first load
+  slides.forEach(function(u){ Preloader.warm(u); });
+
+  // Minimal self-tests
+  (function runSelfTests() {
+    var tests = [];
+    function test(name, fn) {
+      try { fn(); tests.push([name, true]); }
+      catch (e) { tests.push([name, false, e && e.message]); }
+    }
+    test('slides has 5 entries', function(){ if (slides.length !== 5) throw new Error('Expected 5 slides'); });
+    test('shareBtn exists', function(){ if (!shareBtn) throw new Error('shareBtn not found'); });
+    console.log('Self-tests:', tests);
+  })();
+})();
+</script>
+</body>
+</html>
