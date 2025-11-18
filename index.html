@@ -278,7 +278,7 @@ body {
   gap: 12px;
 }
 
-/* Album cover with blue (#3d54dc) pulsating glow */
+/* UPDATED: Spotify cover with square pulsating ring + appear animation */
 .spotify-cover {
   width: 190px;
   aspect-ratio: 1 / 1;
@@ -286,19 +286,74 @@ body {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  animation: coverGlow 2s ease-in-out infinite;
+
+  position: relative;
+  opacity: 0;
+  transform: scale(0.9);
+  box-shadow: none;
 }
 
-/* Pulsating blue glow animation */
-@keyframes coverGlow {
+/* Light-blue pulsating square ring */
+.spotify-cover::before {
+  content: "";
+  position: absolute;
+  top: -18px;
+  left: -18px;
+  right: -18px;
+  bottom: -18px;
+  border-radius: 0; /* square */
+  border: 4px solid rgba(120, 170, 255, 0.9); /* light blue */
+  opacity: 0;
+  transform: scale(0.7);
+  pointer-events: none;
+}
+
+/* When panel is visible, fade & scale cover in, and start ring pulse */
+.spotify.visible .spotify-cover {
+  opacity: 1;
+  transform: scale(1);
+  box-shadow: 0 0 20px rgba(120, 170, 255, 0.65);
+  animation: spotifyAppear 420ms cubic-bezier(0.19, 1, 0.22, 1) forwards;
+}
+
+.spotify.visible .spotify-cover::before {
+  animation: squarePulse 2s ease-out infinite;
+}
+
+/* Pop-in ease animation for the cover itself */
+@keyframes spotifyAppear {
   0% {
-    box-shadow: 0 0 0 rgba(61,84,220,0);
-  }
-  50% {
-    box-shadow: 0 0 20px rgba(61,84,220,0.8), 0 0 40px rgba(61,84,220,0.6);
+    opacity: 0;
+    transform: scale(0.9) translateY(10px);
   }
   100% {
-    box-shadow: 0 0 0 rgba(61,84,220,0);
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Square pulse similar to play button ring but blue + square */
+@keyframes squarePulse {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.7);
+    box-shadow:
+      0 0 0 rgba(120, 170, 255, 0.0),
+      0 0 0 rgba(120, 170, 255, 0.0);
+  }
+  40% {
+    opacity: 0.6;
+    transform: scale(1);
+    box-shadow:
+      0 0 30px rgba(120, 170, 255, 0.7),
+      0 0 60px rgba(120, 170, 255, 0.5);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+    box-shadow:
+      0 0 0 rgba(120, 170, 255, 0.0),
+      0 0 0 rgba(120, 170, 255, 0.0);
   }
 }
 
@@ -376,7 +431,7 @@ body {
         >
           <div
             class="spotify-cover"
-            style="background-image:url('https://storage.googleapis.com/yss_media/Screenshot%202025-11-15%20at%206.42.34%E2%80%AFpm.png');"
+            style="background-image:url('https://storage.googleapis.com/yss_media/YSS%20Logo%20V2%201.png');"
           ></div>
           <div class="spotify-text">
             <span class="spotify-link-text">
